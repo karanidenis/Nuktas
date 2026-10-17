@@ -1,0 +1,135 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: nuktas
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./server/db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d nuktas"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres/nuktas
+      ASR_BASE_URL: http://asr:8010
+      TTS_BASE_URL: http://tts:8011
+      LLM_BASE_URL: http://ollama:11434/v1
+      LLM_CHAT_MODEL: qwen2.5:7b-instruct
+      LLM_API_KEY: ollama
+      PORT: "4000"
+      NODE_ENV: production
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    restart: unless-stopped
+
+  asr:
+    build:
+      context: ./asr
+      dockerfile: Dockerfile
+    environment:
+      ASR_LANGUAGE: sw
+    volumes:
+      - huggingface_cache:/root/.cache/huggingface
+    ports:
+      - "8010:8010"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8010/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+
+  tts:
+    build:
+      context: ./tts
+      dockerfile: Dockerfile
+      args:
+        TTS_ENGINE: chatterbox
+    environment:
+      TTS_ENGINE: chatterbox
+      TTS_LANGUAGE: sw
+    volumes:
+      - huggingface_cache:/root/.cache/huggingface
+    ports:
+      - "8011:8011"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8011/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+
+  # ── Nuktas: Triage agent worker (Python, FastAPI + Pydantic AI) ────────────
+  agent:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile
+    environment:
+      AGENT_API_BASE_URL: http://server:4000
+      AGENT_SERVICE_TOKEN: change_me_shared_service_token
+      # Model for the agent worker. Docker uses the bundled ollama service so the
+      # demo is self-contained; for local dev set LLM_* in .env (the agent also
+      # reads LLM_CHAT_MODEL / LLM_BASE_URL / LLM_API_KEY).
+      LLM_BASE_URL: http://ollama:11434/v1
+      LLM_CHAT_MODEL: qwen2.5:7b-instruct
+      LLM_API_KEY: ollama
+      MCP_DATABASE_URL: postgresql://postgres:postgres@postgres/nuktas
+      DATABASE_URL: postgresql://postgres:postgres@postgres/nuktas
+      MCP_SERVER_CMD: node
+      MCP_SERVER_ENTRY: /app/mcp-server/src/index.js
+      MCP_SERVER_CWD: /app/mcp-server
+      NUKTAS_REPO_ROOT: /app
+    volumes:
+      - ./mcp-server:/app/mcp-server:ro
+    ports:
+      - "8100:8100"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      server:
+        condition: service_started
+      ollama:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  huggingface_cache:
+  ollama_data:

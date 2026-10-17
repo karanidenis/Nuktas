@@ -1,0 +1,9 @@
+fastapi==0.115.6
+uvicorn==0.32.1
+torch==2.2.2
+torchaudio==2.2.2
+transformers==4.48.1
+accelerate==0.27.2
+numpy<2
+soundfile==0.12.1
+python-multipart==0.0.9

@@ -1,0 +1,33 @@
+[project]
+name = "nuktas-agent"
+version = "0.1.0"
+description = "Nuktas agent worker — Pydantic AI orchestration over governed MCP triage tools."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+dependencies = [
+  "pydantic-ai-slim[mcp,openai]==2.57.0",
+  "mcp==2.3.0",
+  "fastapi==0.143.3",
+  "uvicorn==0.54.0",
+  "httpx==0.28.1",
+  "python-dotenv==1.2.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

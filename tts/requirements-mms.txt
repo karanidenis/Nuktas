@@ -1,0 +1,6 @@
+# Swahili TTS via Facebook MMS-TTS VITS checkpoint (facebook/mms-tts-swh).
+# NOTE: MMS-TTS weights are CC-BY-NC-4.0 (non-commercial). Lightweight fallback engine.
+-r requirements.txt
+torch==2.2.2
+transformers==4.48.1
+accelerate==0.27.2

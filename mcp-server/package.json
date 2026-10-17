@@ -1,0 +1,21 @@
+{
+  "name": "@nuktas/triage-mcp-server",
+  "version": "0.1.0",
+  "description": "Nuktas governed Triage MCP server — organization-scoped tools for SATS priority scoring, deterioration re-check flags, and clinician-gated queue updates.",
+  "license": "Apache-2.0",
+  "type": "commonjs",
+  "main": "src/index.js",
+  "bin": {
+    "nuktas-triage-mcp": "src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "pg": "^8.11.5",
+    "zod": "^3.23.8"
+  }
+}

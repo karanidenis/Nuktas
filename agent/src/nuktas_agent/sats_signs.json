@@ -1,0 +1,176 @@
+[
+  {
+    "code": "not_breathing",
+    "colour": "red",
+    "label": "Not breathing / obstructed airway",
+    "ref": "Emergency signs (p.13, p.15)"
+  },
+  {
+    "code": "cardiac_arrest",
+    "colour": "red",
+    "label": "Cardiac arrest",
+    "ref": "Emergency signs (p.13)"
+  },
+  {
+    "code": "current_seizure",
+    "colour": "red",
+    "label": "Convulsing / current seizure",
+    "ref": "Emergency signs (p.13)"
+  },
+  {
+    "code": "unconscious",
+    "colour": "red",
+    "label": "AVPU: responds only to Pain or Unresponsive",
+    "ref": "Emergency signs (p.13, p.15)"
+  },
+  {
+    "code": "hypoglycaemia",
+    "colour": "red",
+    "label": "Glucose < 3 mmol/L",
+    "ref": "Emergency signs (p.13, p.15)"
+  },
+  {
+    "code": "facial_inhalation_burn",
+    "colour": "red",
+    "label": "Facial / inhalation burn",
+    "ref": "Emergency signs (p.13, p.15)"
+  },
+  {
+    "code": "central_cyanosis",
+    "colour": "red",
+    "label": "Central cyanosis",
+    "ref": "Paediatric emergency signs (p.15)"
+  },
+  {
+    "code": "severe_resp_distress",
+    "colour": "red",
+    "label": "Severe respiratory distress",
+    "ref": "Paediatric emergency signs (p.15)"
+  },
+  {
+    "code": "uncontrolled_bleeding",
+    "colour": "red",
+    "label": "Uncontrolled bleeding (not nosebleed)",
+    "ref": "Paediatric emergency signs (p.15)"
+  },
+  {
+    "code": "purpuric_rash",
+    "colour": "red",
+    "label": "Purpuric rash",
+    "ref": "Paediatric emergency signs (p.15)"
+  },
+  {
+    "code": "reduced_consciousness",
+    "colour": "orange",
+    "label": "Reduced level of consciousness / confused",
+    "ref": "Very urgent signs (p.13)"
+  },
+  {
+    "code": "severe_mechanism",
+    "colour": "orange",
+    "label": "High-energy transfer / severe mechanism",
+    "ref": "Very urgent signs (p.13)"
+  },
+  {
+    "code": "threatened_limb",
+    "colour": "orange",
+    "label": "Threatened limb",
+    "ref": "Very urgent signs (p.13)"
+  },
+  {
+    "code": "severe_pain",
+    "colour": "orange",
+    "label": "Severe pain",
+    "ref": "SATS terminology (p.3)"
+  },
+  {
+    "code": "poisoning_overdose",
+    "colour": "orange",
+    "label": "Poisoning or overdose",
+    "ref": "Very urgent signs (p.13)"
+  },
+  {
+    "code": "burns_over_10pct",
+    "colour": "orange",
+    "label": "Burns >= 10% body surface area",
+    "ref": "Very urgent signs (p.13)"
+  },
+  {
+    "code": "open_fracture",
+    "colour": "orange",
+    "label": "Open / threatened fracture",
+    "ref": "Very urgent signs (p.13)"
+  },
+  {
+    "code": "large_joint_dislocation",
+    "colour": "orange",
+    "label": "Dislocation of a larger joint",
+    "ref": "Very urgent signs (p.13)"
+  },
+  {
+    "code": "focal_neurology",
+    "colour": "orange",
+    "label": "Acute focal neurology",
+    "ref": "Very urgent signs (p.13)"
+  },
+  {
+    "code": "eye_injury",
+    "colour": "orange",
+    "label": "Eye injury",
+    "ref": "Very urgent signs (p.13)"
+  },
+  {
+    "code": "unable_to_drink",
+    "colour": "orange",
+    "label": "Unable to drink/feed or vomits everything",
+    "ref": "Paediatric very urgent signs (p.15)"
+  },
+  {
+    "code": "malnutrition_severe",
+    "colour": "orange",
+    "label": "Severe wasting / oedematous malnutrition",
+    "ref": "Paediatric very urgent signs (p.15)"
+  },
+  {
+    "code": "tiny_baby",
+    "colour": "orange",
+    "label": "Tiny baby (< 2 months)",
+    "ref": "Paediatric very urgent signs (p.15)"
+  },
+  {
+    "code": "controlled_haemorrhage",
+    "colour": "yellow",
+    "label": "Haemorrhage — controlled",
+    "ref": "Urgent signs (p.13)"
+  },
+  {
+    "code": "abdominal_pain",
+    "colour": "yellow",
+    "label": "Abdominal pain",
+    "ref": "Urgent signs (p.13)"
+  },
+  {
+    "code": "vomiting_dehydration",
+    "colour": "yellow",
+    "label": "Vomiting with dehydration",
+    "ref": "Urgent signs (p.15)"
+  },
+  {
+    "code": "closed_fracture",
+    "colour": "yellow",
+    "label": "Closed fracture",
+    "ref": "Urgent signs (p.13, p.15)"
+  },
+  {
+    "code": "minor_burn",
+    "colour": "yellow",
+    "label": "Burn < 10% body surface area",
+    "ref": "Urgent signs (p.15)"
+  },
+  {
+    "code": "digit_dislocation",
+    "colour": "yellow",
+    "label": "Dislocation of finger or toe",
+    "ref": "Urgent signs (p.15)"
+  }
+]

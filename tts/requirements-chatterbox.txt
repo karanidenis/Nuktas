@@ -1,0 +1,4 @@
+# Swahili TTS via Resemble AI Chatterbox Multilingual (MIT).
+# Heavy: pulls its own torch 2.6 / transformers 5.x stack, several GB.
+-r requirements.txt
+chatterbox-tts==0.1.7
