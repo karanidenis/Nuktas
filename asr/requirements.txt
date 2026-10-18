@@ -1,9 +1,10 @@
 fastapi==0.115.6
 uvicorn==0.32.1
-torch==2.2.2
-torchaudio==2.2.2
 transformers==4.48.1
 accelerate==0.27.2
 numpy<2
 soundfile==0.12.1
 python-multipart==0.0.9
+# torch/torchaudio are installed from the CPU-only index in the Dockerfile
+# (download.pytorch.org/whl/cpu) — the PyPI wheels bundle ~2.5 GB of CUDA
+# libraries that the CPU transcription path never uses.

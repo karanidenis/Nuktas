@@ -17,7 +17,7 @@ export function useAuth() {
     setLoading(true);
     setError(null);
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:4000";
+      const baseUrl = import.meta.env.VITE_API_URL || "";
       const res = await fetch(`${baseUrl}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -52,7 +52,7 @@ export function useAuth() {
 
   // GET /api/auth/me — server returns { user: {...} }
   const fetchMe = useCallback(async (t: string) => {
-    const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:4000";
+    const baseUrl = import.meta.env.VITE_API_URL || "";
     const res = await fetch(`${baseUrl}/api/auth/me`, {
       headers: { Authorization: `Bearer ${t}` },
     });

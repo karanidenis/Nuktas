@@ -10,7 +10,9 @@ export function useRecommendations(
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const base = import.meta.env.VITE_API_URL || "http://localhost:4000";
+  // "" = same origin. Vite proxies /api → :4000 in dev; nginx proxies /api in
+  // the Docker image. Set VITE_API_URL to call a different server directly.
+  const base = import.meta.env.VITE_API_URL || "";
 
   const fetchList = useCallback(async () => {
     if (!clinicId || !token) return;

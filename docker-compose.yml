@@ -9,8 +9,10 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./server/db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+    # Loopback-only by default: the DB is for the stack + local dev tools, not
+    # for the LAN. Remove the publish entirely for a real deployment.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d nuktas"]
       interval: 5s
@@ -22,16 +24,46 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
-    env_file: .env
+    # .env is optional in Docker: everything the stack needs is set below (or
+    # interpolated from .env when present).
+    env_file:
+      - path: .env
+        required: false
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres/nuktas
+      # Secrets so a bare `docker compose up --build` works with no .env.
+      JWT_SECRET: ${JWT_SECRET:-change_me_in_production_16_bytes_min}
+      # Shared with the agent service; compose interpolates both from one value.
+      AGENT_SERVICE_TOKEN: ${AGENT_SERVICE_TOKEN:-change_me_shared_service_token}
+      # The agent worker is reachable at the compose service name. Without this,
+      # env_file would pass the host's AGENT_BASE_URL=http://localhost:8100, which
+      # inside the server container points back at the server itself.
+      AGENT_BASE_URL: http://agent:8100
+      AGENT_TIMEOUT_MS: ${AGENT_TIMEOUT_MS:-15000}
+      CLIENT_URL: ${CLIENT_URL:-http://localhost}
       ASR_BASE_URL: http://asr:8010
       TTS_BASE_URL: http://tts:8011
-      LLM_BASE_URL: http://ollama:11434/v1
-      LLM_CHAT_MODEL: qwen2.5:7b-instruct
-      LLM_API_KEY: ollama
+      # LLM: bundled Ollama by default. Set LLM_* in .env to point Docker at your
+      # own OpenAI-compatible endpoint (e.g. a self-hosted vLLM/Qwen) too.
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://ollama:11434/v1}
+      LLM_CHAT_MODEL: ${LLM_CHAT_MODEL:-qwen2.5:7b-instruct}
+      LLM_API_KEY: ${LLM_API_KEY:-ollama}
+      LLM_DISABLE_THINKING: ${LLM_DISABLE_THINKING:-false}
+      # The API is itself an MCP client: nurse approval/apply goes through the
+      # governed MCP tools, never direct SQL. Point the spawned server at the
+      # mounted checkout and at the compose database (env_file would otherwise
+      # hand it a localhost URL that does not resolve inside the container).
+      MCP_DATABASE_URL: postgresql://postgres:postgres@postgres/nuktas
+      MCP_SERVER_CMD: node
+      MCP_SERVER_ENTRY: /app/mcp-server/src/index.js
+      MCP_SERVER_CWD: /app/mcp-server
+      # The mounted checkout may have no node_modules on a fresh clone; the image's
+      # own node_modules (pg, zod, @modelcontextprotocol/sdk) is the fallback.
+      NODE_PATH: /app/node_modules
       PORT: "4000"
       NODE_ENV: production
+    volumes:
+      - ./mcp-server:/app/mcp-server:ro
     ports:
       - "4000:4000"
     depends_on:
@@ -71,10 +103,12 @@ services:
     build:
       context: ./tts
       dockerfile: Dockerfile
+      # One variable switches the whole image (build pins different torch/
+      # transformers versions per engine): TTS_ENGINE=mms docker compose up --build tts
       args:
-        TTS_ENGINE: chatterbox
+        TTS_ENGINE: ${TTS_ENGINE:-chatterbox}
     environment:
-      TTS_ENGINE: chatterbox
+      TTS_ENGINE: ${TTS_ENGINE:-chatterbox}
       TTS_LANGUAGE: sw
     volumes:
       - huggingface_cache:/root/.cache/huggingface
@@ -96,28 +130,57 @@ services:
       - "11434:11434"
     restart: unless-stopped
 
+  # One-shot: pull the open-weights model into the bundled Ollama so a fresh
+  # `docker compose up --build` actually has something to talk to. Gates the
+  # agent (and anything else that needs the model) on completion.
+  ollama-init:
+    image: ollama/ollama:latest
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      # If LLM_BASE_URL points at an external OpenAI-compatible endpoint
+      # (your own vLLM/Qwen), skip the bundled-Ollama pull entirely.
+      CUSTOM_LLM_BASE_URL: ${LLM_BASE_URL:-}
+    depends_on:
+      - ollama
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ -n "$$CUSTOM_LLM_BASE_URL" ] && [ "$$CUSTOM_LLM_BASE_URL" != "http://ollama:11434/v1" ]; then
+          echo "LLM_BASE_URL=$$CUSTOM_LLM_BASE_URL is external; skipping bundled Ollama pull."
+          exit 0
+        fi
+        for i in $$(seq 1 60); do
+          if ollama list >/dev/null 2>&1; then
+            echo "ollama reachable, pulling model..."
+            break
+          fi
+          echo "waiting for ollama... ($$i)"
+          sleep 5
+        done
+        ollama pull qwen2.5:7b-instruct
+    restart: "no"
+
   # ── Nuktas: Triage agent worker (Python, FastAPI + Pydantic AI) ────────────
   agent:
     build:
-      context: ./agent
-      dockerfile: Dockerfile
+      # Repo root: the image bakes in both agent/ and mcp-server/ (see .dockerignore).
+      context: .
+      dockerfile: agent/Dockerfile
     environment:
       AGENT_API_BASE_URL: http://server:4000
-      AGENT_SERVICE_TOKEN: change_me_shared_service_token
-      # Model for the agent worker. Docker uses the bundled ollama service so the
-      # demo is self-contained; for local dev set LLM_* in .env (the agent also
-      # reads LLM_CHAT_MODEL / LLM_BASE_URL / LLM_API_KEY).
-      LLM_BASE_URL: http://ollama:11434/v1
-      LLM_CHAT_MODEL: qwen2.5:7b-instruct
-      LLM_API_KEY: ollama
+      # Must match the server's token (both come from .env, so they always agree).
+      AGENT_SERVICE_TOKEN: ${AGENT_SERVICE_TOKEN:-change_me_shared_service_token}
+      # Model for the agent worker. Bundled Ollama by default; set LLM_* in .env
+      # to use your own OpenAI-compatible endpoint (e.g. self-hosted Qwen) here.
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://ollama:11434/v1}
+      LLM_CHAT_MODEL: ${LLM_CHAT_MODEL:-qwen2.5:7b-instruct}
+      LLM_API_KEY: ${LLM_API_KEY:-ollama}
       MCP_DATABASE_URL: postgresql://postgres:postgres@postgres/nuktas
       DATABASE_URL: postgresql://postgres:postgres@postgres/nuktas
       MCP_SERVER_CMD: node
       MCP_SERVER_ENTRY: /app/mcp-server/src/index.js
       MCP_SERVER_CWD: /app/mcp-server
       NUKTAS_REPO_ROOT: /app
-    volumes:
-      - ./mcp-server:/app/mcp-server:ro
     ports:
       - "8100:8100"
     depends_on:
@@ -127,6 +190,9 @@ services:
         condition: service_started
       ollama:
         condition: service_started
+      # Agent only becomes useful once the weights are actually on disk.
+      ollama-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
 volumes:

@@ -306,7 +306,7 @@ export function SearchPanel({ isOpen, onClose, clinicId, token }: Props) {
                 <Text fontSize="9px" color="gray.400">close</Text>
               </HStack>
               <Text fontSize="9px" color="gray.300" ml="auto">
-                Powered by OpenAI text-embedding-3-small
+                Semantic search over transcripts
               </Text>
             </HStack>
           </Box>

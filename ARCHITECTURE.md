@@ -24,4 +24,4 @@ Postgres `LISTEN/NOTIFY` on channel `nuktas_events`; server bridge forwards to S
 @modelcontextprotocol/server-filesystem — for reading source files/artifacts in dev and verification. Rationale: standard, auditable, not authored by Nuktas; narrows file access.
 
 ## One-command / quick start
-`docker compose up --build` (services: postgres, server, client, asr, tts, ollama). Agent runs as a service (AGENT_BASE_URL/AGENT_SERVICE_TOKEN). Model served by the bundled Ollama container — or point `AGENT_MODEL_BASE_URL` at any OpenAI-compatible server (self-hosted vLLM/TGI/LM Studio).
+`docker compose up --build` (services: postgres, server, client, asr, tts, ollama + one-shot `ollama-init` model pull). Agent runs as a service (AGENT_BASE_URL/AGENT_SERVICE_TOKEN); the server seeds demo data on boot. Model served by the bundled Ollama container — or point `LLM_BASE_URL`/`LLM_CHAT_MODEL`/`LLM_API_KEY` at any OpenAI-compatible server (self-hosted vLLM/TGI/LM Studio); `AGENT_MODEL_*` overrides the agent only.

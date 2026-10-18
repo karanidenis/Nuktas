@@ -8,7 +8,7 @@ Voice intake via Twilio → AI triage via OpenAI → real-time dashboard via Soc
 - **Backend** — Node.js, Express, Socket.IO, PostgreSQL (`pg`)
 - **Frontend** — React 18, Chakra UI v2, TypeScript, Vite, `socket.io-client`
 - **Voice** — Twilio Programmable Voice + TwiML (optional)
-- **AI** — OpenAI-compatible (Ollama/LocalAI) or OpenAI
+- **AI** — any OpenAI-compatible endpoint via `LLM_BASE_URL`/`LLM_API_KEY`/`LLM_CHAT_MODEL` (bundled Ollama by default; vLLM, LocalAI, or OpenAI also work)
 - **SMS** — Twilio Messaging
 
 ## Setup
@@ -120,9 +120,9 @@ server/                 Node.js + Express + Socket.IO
 │   │   └── patients.js         GET /api/v1/patients/:id/history
 │   ├── sockets/clinic.js       Socket.IO event handlers
 │   ├── webhooks/voice.js       Twilio TwiML webhook handlers
-│   ├── voice/callSession.js    In-memory call state (replaces GenServer)
+│   ├── voice/callSession.js    In-memory call state (15-min TTL)
 │   └── services/
-│       ├── openai.js           GPT-4o-mini intake agent
+│       ├── openai.js           OpenAI-compatible intake LLM (LLM_*)
 │       ├── twilio.js           TwiML string builders
 │       └── sms.js              Twilio SMS notifications
 └── db/
@@ -167,13 +167,17 @@ Governance guarantees:
 Open-weights models (all run locally — patient data never leaves the country):
 - **ASR** — `Finiflowlabs/sauti-asr-v1` (Whisper-medium, Swahili, Apache-2.0).
 - **TTS** — Resemble AI Chatterbox Multilingual (MIT, Swahili); `TTS_ENGINE=mms` switches to the lighter CC-BY-NC `facebook/mms-tts-swh` fallback.
-- **Agent LLM** — any open-weights model behind an OpenAI-compatible API: the bundled Ollama (`qwen2.5:7b-instruct`) by default, or your own self-hosted server (e.g. vLLM serving `qwen3.8-27b`) via `AGENT_MODEL_BASE_URL`/`AGENT_MODEL_NAME`/`AGENT_MODEL_API_KEY`.
+- **Agent LLM** — any open-weights model behind an OpenAI-compatible API: the bundled Ollama (`qwen2.5:7b-instruct`) by default, or your own self-hosted server (e.g. vLLM serving `qwen3.8-27b`) via `LLM_BASE_URL` / `LLM_CHAT_MODEL` / `LLM_API_KEY` — the same setting the server's voice intake uses, so phone intake and the triage agent share one model. `AGENT_MODEL_*` still works as an agent-only override. If the model is a thinking model (e.g. Qwen3), set `LLM_DISABLE_THINKING=true` so short phone replies are not swallowed by the reasoning budget.
 
-Quick start:
-1. `docker compose up --build` (starts postgres, server, client, asr, tts, ollama, agent).
-2. Apply schema: `cd server && psql $DATABASE_URL -f db/schema.sql` if running outside docker.
-3. Seed: `cd server && node db/seed.js`.
-4. Access http://localhost:80 (client) / http://localhost:4000 (server).
+Quick start (one command):
+1. `docker compose up --build` — starts postgres (schema applied automatically), server (demo data seeded automatically), client, asr, tts, ollama (open-weights model pulled by the one-shot `ollama-init`), and the agent. No `.env` is required: Docker ships safe defaults (schema/seed/secrets/model config are all wired in the compose file). Copy `.env.example` to `.env` only to override them — e.g. to point the stack at your own OpenAI-compatible endpoint (set `LLM_BASE_URL`/`LLM_CHAT_MODEL`/`LLM_API_KEY`; when set, the bundled Ollama model pull is skipped automatically).
+2. Access http://localhost (client) / http://localhost:4000 (server) and log in with `admin@nairobi.clinic` / `password123`.
+
+Deployment notes:
+- **First run** builds five images and downloads ~10 GB of open-weights models (Ollama `qwen2.5:7b-instruct` ~4.7 GB, Swahili ASR + TTS weights from Hugging Face). Plan 20–30 minutes on a fast connection.
+- **Resources**: 8 GB+ RAM recommended (the TTS container peaks near 5 GB on CPU). 4+ CPU cores.
+- **TTS engine**: the default `chatterbox` (MIT) is autoregressive and needs a GPU to be near real-time; on a CPU-only host set `TTS_ENGINE=mms` (one env var, `docker compose up --build tts`) for the fast VITS engine.
+- **Ports**: 80 (UI), 4000 (API), 8100 (agent), 8010 (ASR), 8011 (TTS), 11434 (Ollama). Postgres is loopback-only by default; move it with `POSTGRES_PORT`.
 
 Run MCP tests: `cd mcp-server && node --test test/` (28/28 pass).
 Agent unit tests: `cd agent && PYTHONPATH=src .venv/bin/python -m pytest tests/ -v`.

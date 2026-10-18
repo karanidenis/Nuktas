@@ -5,6 +5,7 @@ import os
 import numpy as np
 import torch
 from fastapi import FastAPI, HTTPException
+from fastapi.concurrency import run_in_threadpool
 
 # Two interchangeable Swahili TTS engines:
 #   chatterbox (default) — Resemble AI Chatterbox Multilingual, MIT-licensed, `sw` built in.
@@ -86,7 +87,11 @@ async def tts(request: dict):
     if not text:
         raise HTTPException(status_code=400, detail="text is required")
 
-    waveform, sample_rate = _synthesize(text)
+    # Chatterbox synthesis is CPU-heavy and synchronous. Run it in a worker
+    # thread so the event loop stays free: /health keeps answering (the
+    # compose healthcheck would otherwise mark the container unhealthy) and
+    # requests queue instead of deadlocking the whole server.
+    waveform, sample_rate = await run_in_threadpool(_synthesize, text)
     audio_b64 = base64.b64encode(_wav_bytes(waveform, sample_rate)).decode("utf-8")
 
     return {
