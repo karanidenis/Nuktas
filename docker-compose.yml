@@ -96,7 +96,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 120s
+      # First run downloads the ~3 GB ASR weights during the startup preload.
+      start_period: 600s
     restart: unless-stopped
 
   tts:
@@ -104,11 +105,12 @@ services:
       context: ./tts
       dockerfile: Dockerfile
       # One variable switches the whole image (build pins different torch/
-      # transformers versions per engine): TTS_ENGINE=mms docker compose up --build tts
+      # transformers versions per engine). Default mms = near real-time on CPU;
+      # TTS_ENGINE=chatterbox for GPU/production (MIT, highest quality).
       args:
-        TTS_ENGINE: ${TTS_ENGINE:-chatterbox}
+        TTS_ENGINE: ${TTS_ENGINE:-mms}
     environment:
-      TTS_ENGINE: ${TTS_ENGINE:-chatterbox}
+      TTS_ENGINE: ${TTS_ENGINE:-mms}
       TTS_LANGUAGE: sw
     volumes:
       - huggingface_cache:/root/.cache/huggingface
@@ -119,7 +121,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 120s
+      # First run downloads the TTS weights during the startup preload.
+      start_period: 600s
     restart: unless-stopped
 
   ollama:

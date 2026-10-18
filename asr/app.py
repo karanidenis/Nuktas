@@ -44,6 +44,19 @@ def get_pipe():
     return _pipe
 
 
+@app.on_event("startup")
+def _preload():
+    # Pay the one-time model load (~30 s on CPU, more on a fresh download) during
+    # `docker compose up` instead of on the first incoming call. The compose
+    # healthcheck start_period covers this window.
+    try:
+        get_pipe()
+        print("ASR model preloaded", flush=True)
+    except Exception as exc:
+        # Stay up; the first /transcribe will retry the lazy load.
+        print(f"ASR preload failed (will retry lazily): {exc}", flush=True)
+
+
 def decode_audio(file_bytes: bytes):
     try:
         waveform, sample_rate = torchaudio.load(io.BytesIO(file_bytes))

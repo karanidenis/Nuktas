@@ -166,7 +166,7 @@ Governance guarantees:
 
 Open-weights models (all run locally — patient data never leaves the country):
 - **ASR** — `Finiflowlabs/sauti-asr-v1` (Whisper-medium, Swahili, Apache-2.0).
-- **TTS** — Resemble AI Chatterbox Multilingual (MIT, Swahili); `TTS_ENGINE=mms` switches to the lighter CC-BY-NC `facebook/mms-tts-swh` fallback.
+- **TTS** — default `facebook/mms-tts-swh` (Facebook MMS-TTS, VITS, CC-BY-NC-4.0): near real-time on CPU, the right engine for demo hosts. `TTS_ENGINE=chatterbox` switches to Resemble AI Chatterbox Multilingual (MIT, highest quality, Swahili built in) for GPU/production.
 - **Agent LLM** — any open-weights model behind an OpenAI-compatible API: the bundled Ollama (`qwen2.5:7b-instruct`) by default, or your own self-hosted server (e.g. vLLM serving `qwen3.8-27b`) via `LLM_BASE_URL` / `LLM_CHAT_MODEL` / `LLM_API_KEY` — the same setting the server's voice intake uses, so phone intake and the triage agent share one model. `AGENT_MODEL_*` still works as an agent-only override. If the model is a thinking model (e.g. Qwen3), set `LLM_DISABLE_THINKING=true` so short phone replies are not swallowed by the reasoning budget.
 
 Quick start (one command):
@@ -176,7 +176,7 @@ Quick start (one command):
 Deployment notes:
 - **First run** builds five images and downloads ~10 GB of open-weights models (Ollama `qwen2.5:7b-instruct` ~4.7 GB, Swahili ASR + TTS weights from Hugging Face). Plan 20–30 minutes on a fast connection.
 - **Resources**: 8 GB+ RAM recommended (the TTS container peaks near 5 GB on CPU). 4+ CPU cores.
-- **TTS engine**: the default `chatterbox` (MIT) is autoregressive and needs a GPU to be near real-time; on a CPU-only host set `TTS_ENGINE=mms` (one env var, `docker compose up --build tts`) for the fast VITS engine.
+- **TTS engine**: default is MMS (`facebook/mms-tts-swh`) — near real-time on CPU, for demo hosts. On a GPU machine set `TTS_ENGINE=chatterbox` for Resemble AI Chatterbox Multilingual (MIT, highest quality; autoregressive, so it needs a GPU to be near real-time).
 - **Ports**: 80 (UI), 4000 (API), 8100 (agent), 8010 (ASR), 8011 (TTS), 11434 (Ollama). Postgres is loopback-only by default; move it with `POSTGRES_PORT`.
 
 Run MCP tests: `cd mcp-server && node --test test/` (28/28 pass).
