@@ -5,7 +5,8 @@ const OpenAI = require('openai');
 // vLLM/TGI/LM Studio server. LLM_* is the primary name; LOCALAI_* is the
 // legacy alias.
 const apiKey = process.env.LLM_API_KEY || process.env.LOCALAI_API_KEY || 'localai';
-const baseURL = process.env.LLM_BASE_URL || process.env.LOCALAI_BASE_URL;
+const baseURL =
+  process.env.LLM_BASE_URL || process.env.LOCALAI_BASE_URL || 'http://localhost:11434/v1';
 const CHAT_MODEL =
   process.env.LLM_CHAT_MODEL || process.env.LOCALAI_CHAT_MODEL || 'gpt-4o-mini';
 

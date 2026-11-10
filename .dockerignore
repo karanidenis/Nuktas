@@ -1,0 +1,12 @@
+# Root-context builds (the agent image needs both agent/ and mcp-server/).
+.git
+.gitignore
+**/node_modules
+**/.venv
+**/__pycache__
+**/*.pyc
+**/dist
+**/build
+**/.pytest_cache
+.huggingface
+.env

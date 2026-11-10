@@ -3,7 +3,6 @@ const queue = require('../models/queue');
 
 /**
  * Attach Socket.IO clinic channel logic.
- * Mirrors the Phoenix ClinicChannel behaviour.
  *
  * Events emitted to clients:
  *   queue_state        — full snapshot on join

@@ -9,7 +9,7 @@ interface Props {
 
 export function AuditLog({ clinicId, token }: Props) {
   const [events, setEvents] = useState<AuditEvent[]>([]);
-  const base = import.meta.env.VITE_API_URL || "http://localhost:4000";
+  const base = import.meta.env.VITE_API_URL || "";
 
   useEffect(() => {
     if (!clinicId || !token) return;

@@ -1,5 +1,5 @@
 /**
- * TwiML string builders — mirrors Hospvoice.Services.Twilio in Elixir.
+ * TwiML string builders for the Nuktas voice intake flow.
  * Returns raw XML strings that Express sends back to Twilio.
  */
 

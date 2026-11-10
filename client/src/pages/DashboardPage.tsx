@@ -109,7 +109,7 @@ export function DashboardPage({ token, user, onLogout }: Props) {
                 letterSpacing="0.12em"
                 textTransform="uppercase"
               >
-                VX
+                NU
               </Text>
             </Box>
             <Text fontWeight="800" fontSize="sm" letterSpacing="0.04em" mr={3}>
@@ -363,7 +363,8 @@ export function DashboardPage({ token, user, onLogout }: Props) {
                   onClick={setSelectedEntry}
                 />
               ))}
-                      )}
+            </SimpleGrid>
+          )}
           <Box mt={10}>
             <NuktasTriagePanel clinicId={clinic_id} token={token} />
           </Box>

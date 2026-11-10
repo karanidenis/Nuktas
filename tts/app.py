@@ -5,14 +5,19 @@ import os
 import numpy as np
 import torch
 from fastapi import FastAPI, HTTPException
+from fastapi.concurrency import run_in_threadpool
 
 # Two interchangeable Swahili TTS engines:
-#   chatterbox (default) — Resemble AI Chatterbox Multilingual, MIT-licensed, `sw` built in.
-#   mms                  — Facebook MMS-TTS (`facebook/mms-tts-swh`), VITS, CC-BY-NC-4.0.
-# The heavy dependencies differ (chatterbox pins torch 2.6 / transformers 5.x, MMS pins
-# torch 2.2 / transformers 4.x), so each engine has its own requirements file and the
-# Docker image installs only the one selected by the TTS_ENGINE build arg.
-ENGINE = os.getenv("TTS_ENGINE", "chatterbox").strip().lower()
+#   mms (default)        — Facebook MMS-TTS (`facebook/mms-tts-swh`), VITS, CC-BY-NC-4.0.
+#                          Single-pass, near real-time on CPU — the right default for
+#                          CPU-only demo/clinic hosts.
+#   chatterbox           — Resemble AI Chatterbox Multilingual, MIT-licensed, `sw`
+#                          built in. Best quality; autoregressive, so it needs a GPU
+#                          to be near real-time. Select with TTS_ENGINE=chatterbox.
+# The heavy dependencies differ (chatterbox pins torch 2.6 / transformers 5.x, MMS
+# pins torch 2.2 / transformers 4.x), so each engine has its own requirements file
+# and the Docker image installs only the one selected by the TTS_ENGINE build arg.
+ENGINE = os.getenv("TTS_ENGINE", "mms").strip().lower()
 MMS_MODEL_ID = os.getenv("TTS_MODEL_ID", "facebook/mms-tts-swh")
 LANGUAGE = os.getenv("TTS_LANGUAGE", "sw").strip() or "sw"
 
@@ -75,6 +80,21 @@ def _engine_info():
     return info
 
 
+@app.on_event("startup")
+def _preload():
+    # Pay the one-time model load during `docker compose up` instead of on the
+    # first /tts call (the compose healthcheck start_period covers this window).
+    try:
+        if ENGINE == "mms":
+            _load_mms()
+        else:
+            _load_chatterbox()
+        print(f"TTS model preloaded (engine={ENGINE})", flush=True)
+    except Exception as exc:
+        # Stay up; the first /tts will retry the lazy load.
+        print(f"TTS preload failed (will retry lazily): {exc}", flush=True)
+
+
 @app.get("/health")
 def health():
     return {"ok": True, **_engine_info()}
@@ -86,7 +106,11 @@ async def tts(request: dict):
     if not text:
         raise HTTPException(status_code=400, detail="text is required")
 
-    waveform, sample_rate = _synthesize(text)
+    # Chatterbox synthesis is CPU-heavy and synchronous. Run it in a worker
+    # thread so the event loop stays free: /health keeps answering (the
+    # compose healthcheck would otherwise mark the container unhealthy) and
+    # requests queue instead of deadlocking the whole server.
+    waveform, sample_rate = await run_in_threadpool(_synthesize, text)
     audio_b64 = base64.b64encode(_wav_bytes(waveform, sample_rate)).decode("utf-8")
 
     return {

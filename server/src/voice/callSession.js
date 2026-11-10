@@ -1,6 +1,5 @@
 /**
- * In-memory call session store.
- * Mirrors the Elixir GenServer-based CallSession.
+ * In-memory call session store for the Nuktas voice intake flow.
  * Each active Twilio call gets one session; sessions auto-expire after 15 minutes.
  */
 

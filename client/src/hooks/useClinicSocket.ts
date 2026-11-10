@@ -1,7 +1,7 @@
 /**
- * Replaces the Phoenix channel hook with a Socket.IO equivalent.
- * The server events and payload shapes are identical so the dashboard components
- * don't need to change.
+ * Socket.IO clinic channel hook for the dashboard.
+ * Subscribes to the clinic's live queue events; payload shapes match the server's
+ * `sockets/clinic.js` emitters.
  */
 import { useEffect, useRef, useState, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
@@ -27,10 +27,10 @@ export function useClinicSocket(clinicId: string | undefined, token: string | nu
   useEffect(() => {
     if (!clinicId || !token) return;
 
-    const socket = io(import.meta.env.VITE_API_URL || "http://localhost:4000", {
+    const socket = io(import.meta.env.VITE_API_URL || undefined, {
       auth: { token },
-      // Vite proxies /socket.io → localhost:4000 locally.
-      // In production, we connect directly to the server URL.
+      // Same origin: Vite proxies /socket.io → :4000 in dev, nginx proxies it in
+      // the Docker image. Set VITE_API_URL to connect to a different server.
       path: "/socket.io",
       transports: ["websocket", "polling"],
     });
