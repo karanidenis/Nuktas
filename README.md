@@ -1,193 +1,401 @@
-# Nuktas — Clinic Queue + Agentic Triage (Node.js)
+# Nuktas
 
-Governed, SATS-grounded clinical priority support for hospital triage teams.
-The agent proposes; a named clinician decides before the queue changes.
+Governed, SATS-grounded triage support for hospital and clinic teams.
 
-## Stack
+Nuktas helps a clinical team collect observations, prioritize a waiting queue,
+review an agent's evidence, and record a named clinician decision. The agent can
+recommend a priority; it cannot silently diagnose, prescribe, or move a patient
+in the queue.
 
-- **Backend** — Node.js, Express, Socket.IO, PostgreSQL (`pg`)
-- **Frontend** — React 18, Chakra UI v2, TypeScript, Vite, `socket.io-client`
-- **Voice pilot** — optional local EN/SW intake channel; intentionally outside the core workflow pending facility validation
-- **AI** — any OpenAI-compatible endpoint via `LLM_BASE_URL`/`LLM_API_KEY`/`LLM_CHAT_MODEL` (bundled Ollama by default; vLLM, LocalAI, or OpenAI also work)
-- **SMS** — Twilio Messaging
+This repository is a finalist submission for the **African Agentic AI Design
+Challenge — Healthcare: The Triage Desk**.
 
-## Setup
+## Start locally
 
-### 1. Environment
-
-```sh
-cp .env.example .env
-# Edit .env — set DATABASE_URL, JWT_SECRET, AI config, TWILIO_* (optional).
-# CLIENT_URL is for the Vite dev server; DOCKER_CLIENT_URL is for Docker/nginx.
+```bash
+git clone https://github.com/karanidenis/Nuktas.git
+cd Nuktas
+colima start --cpu 4 --memory 10 --disk 60
+docker compose up --build -d
 ```
 
-### 2. Database
+Open [http://localhost](http://localhost) and sign in with
+`doctor@nairobi.clinic` / `password123`. The first run downloads approximately
+10 GB of open-weights models, so it can take 20–30 minutes. See the
+[detailed local setup](#detailed-local-setup-with-colima) for health checks,
+other demo roles, and a reproducible agent run.
 
-```sh
-# Create the database
-createdb nuktas_dev
+## What Nuktas does
 
-# Run schema
-cd server
-npm run db:schema
+Emergency and outpatient teams often coordinate intake through paper, phone
+calls, spreadsheets, and disconnected systems. Nuktas provides one governed
+workflow:
 
-# Seed demo data
-npm run db:seed
+1. A patient enters the clinic queue through staff intake or the optional
+   English/Swahili voice pilot.
+2. Staff record or verify observations and vital signs.
+3. The agent reads the current queue, patient history, and latest observations
+   through clinic-scoped MCP tools.
+4. Deterministic code applies the South African Triage Scale (SATS/TEWS). The
+   language model does not invent the score.
+5. Nuktas creates a **pending recommendation** with rationale, missing data,
+   confidence, and the thresholds that fired.
+6. A named clinician approves or rejects the recommendation.
+7. Only the approval-gated MCP tool can apply an approved priority change.
+8. Tool calls, recommendations, decisions, and queue changes are recorded in an
+   append-only audit trail.
+
+The web application is organized into three clinical workspaces:
+
+- **Patient queue** — current load, urgency, patient overview, and visit actions.
+- **Clinical review** — evidence and pending recommendations requiring a human
+  decision.
+- **Activity & audit** — agent runs, tool steps, audit events, and load trends.
+
+## Decision boundary
+
+```mermaid
+flowchart LR
+    A[Staff or optional voice intake] --> B[Patient queue]
+    B --> C[Observations and history]
+    C --> D[Open-weights agent]
+    P[Borrowed filesystem MCP<br/>restricted runtime policy] --> D
+    D --> E[Nuktas MCP tools]
+    E --> F[Deterministic SATS / TEWS]
+    F --> G[Pending recommendation]
+    G --> H{Named clinician review}
+    H -->|Reject| I[Queue unchanged]
+    H -->|Approve| J[Approval record]
+    J --> K[Apply-approved-update tool]
+    K --> L[Queue updated]
+    E --> M[Audit trail]
+    H --> M
+    K --> M
 ```
 
-### 3. Install dependencies
+| Control | Enforced by |
+|---|---|
+| Clinic and organization scope | Every Nuktas MCP tool |
+| SATS/TEWS priority calculation | Deterministic JavaScript module |
+| Queue-changing authority | `apply_approved_queue_update` only |
+| Human decision | Named row in `approvals` |
+| Agent tool policy | Restricted borrowed filesystem MCP |
+| Traceability | Agent steps and append-only audit events |
 
-```sh
-# Server
-cd server && npm install
+Nuktas is decision support, not an autonomous clinician. It does not replace
+local triage policy, professional judgment, emergency escalation procedures, or
+medical-device validation.
 
-# Client
-cd ../client && npm install
+## Detailed local setup with Colima
+
+### Prerequisites
+
+- macOS with [Colima](https://github.com/abiosoft/colima) and the Docker CLI
+- Git
+- At least 4 CPU cores, 8–10 GB RAM, and approximately 20 GB free disk space
+
+No `.env` file is required for the local demonstration. Docker Compose supplies
+safe demo defaults.
+
+### 1. Clone and start
+
+```bash
+git clone https://github.com/karanidenis/Nuktas.git
+cd Nuktas
+colima start --cpu 4 --memory 10 --disk 60
+docker compose up --build -d
 ```
 
-### 4. Run
+The first run builds the application and downloads the open-weights LLM, ASR,
+and TTS models. Depending on the connection, allow 20–30 minutes and roughly
+10 GB of model downloads. Follow the model pull with:
 
-In two terminals:
-
-```sh
-# Terminal 1 — backend (port 4000)
-cd server && npm run dev
-
-# Terminal 2 — frontend (port 5173, proxied to 4000)
-cd client && npm run dev
+```bash
+docker compose logs -f ollama-init
 ```
 
-Open http://localhost:5173
+When it reports that the model pull is complete, check the stack:
 
-### Optional: ASR microservice (no Twilio)
-
-```sh
-cd asr
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-ASR_MODEL_ID=Finiflowlabs/sauti-asr-v1 \
-uvicorn app:app --host 0.0.0.0 --port 8001
+```bash
+docker compose ps
+curl http://localhost:4000/health
+curl http://localhost:8100/health
+curl http://localhost:8010/health
+curl http://localhost:8011/health
 ```
 
-ASR endpoints:
+### 2. Open the application
 
-- `GET http://localhost:8001/health`
-- `POST http://localhost:8001/transcribe` (multipart file or raw bytes)
-- `POST http://localhost:4000/api/v1/asr/transcribe` (proxy from Node)
-- `POST http://localhost:4000/api/v1/asr/intake` (creates queue entry from audio)
-
-ASR intake UI:
-
-- `http://localhost:5173/asr-intake/:clinic_id`
-
-### Demo credentials
+Open [http://localhost](http://localhost) and sign in with:
 
 | Email | Password | Role |
-|-------|----------|------|
-| admin@nairobi.clinic | password123 | admin |
-| staff@nairobi.clinic | password123 | staff |
-| doctor@nairobi.clinic | password123 | doctor |
+|---|---|---|
+| `admin@nairobi.clinic` | `password123` | Administrator |
+| `staff@nairobi.clinic` | `password123` | Triage staff |
+| `doctor@nairobi.clinic` | `password123` | Clinician |
+
+The database schema and synthetic Nairobi clinic records are created
+automatically. These credentials are for local demonstration only.
+
+### 3. Walk through the product
+
+1. Open **Patient queue** and select a patient.
+2. Review the current visit, complaint, urgency, and visit history in one view.
+3. Use the footer action to check in, begin, or complete the visit.
+4. Open **Clinical review** to inspect pending SATS recommendations and record a
+   clinician decision.
+5. Open **Activity & audit** to inspect the agent run and its tool-level trail.
+
+To create a fresh recommendation through the API, install `jq` and run:
+
+```bash
+LOGIN=$(curl -s http://localhost:4000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"doctor@nairobi.clinic","password":"password123"}')
+
+TOKEN=$(printf '%s' "$LOGIN" | jq -r '.token')
+CLINIC_ID=$(printf '%s' "$LOGIN" | jq -r '.user.clinic_id')
+QUEUE=$(curl -s "http://localhost:4000/api/v1/clinics/$CLINIC_ID/queue" \
+  -H "Authorization: Bearer $TOKEN")
+PATIENT_ID=$(printf '%s' "$QUEUE" | jq -r '.queue[0].patient.id')
+QUEUE_ENTRY_ID=$(printf '%s' "$QUEUE" | jq -r '.queue[0].id')
+CHIEF_COMPLAINT=$(printf '%s' "$QUEUE" | jq -r '.queue[0].chief_complaint')
+
+curl -s "http://localhost:4000/api/v1/clinics/$CLINIC_ID/triage/runs" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "$(jq -n \
+    --arg patient_id "$PATIENT_ID" \
+    --arg queue_entry_id "$QUEUE_ENTRY_ID" \
+    --arg chief_complaint "$CHIEF_COMPLAINT" \
+    '{patient_id:$patient_id,queue_entry_id:$queue_entry_id,chief_complaint:$chief_complaint,language:"en",trigger:"dashboard"}')"
+```
+
+Watch the run with `docker compose logs -f agent`, then refresh **Clinical
+review**. Approval records the signed-in clinician and applies the update through
+the gated MCP tool; rejection leaves the queue unchanged.
+
+### Stop or reset
+
+```bash
+docker compose down
+```
+
+To delete all local Nuktas data and downloaded model volumes and start clean:
+
+```bash
+docker compose down -v
+```
+
+The second command is destructive and removes the local demonstration database
+and model caches.
+
+## Services started by Docker Compose
+
+| Service | Local address | Purpose |
+|---|---|---|
+| Web client | `http://localhost` | Queue, review, and audit workspaces |
+| Node API | `http://localhost:4000` | Authentication, workflow API, and Socket.IO |
+| Agent | `http://localhost:8100` | Pydantic AI orchestration |
+| ASR | `http://localhost:8010` | Optional Swahili speech recognition |
+| TTS | `http://localhost:8011` | Optional Swahili speech output |
+| Ollama | `http://localhost:11434` | Local open-weights model runtime |
+| Hosted-MCP preview | `http://localhost:8200/mcp` | Loopback-only HTTP MCP transport |
+| PostgreSQL | `127.0.0.1:5432` | Clinical workflow and audit state |
+
+PostgreSQL and the local HTTP MCP preview are bound to loopback by default.
+
+## Use an existing open-weights model endpoint
+
+The default stack downloads `qwen2.5:7b-instruct` through Ollama. To use an
+existing OpenAI-compatible vLLM, LocalAI, Ollama, or Qwen endpoint, create `.env`:
+
+```bash
+cp .env.example .env
+```
+
+Set at least:
+
+```dotenv
+LLM_BASE_URL=https://your-model-host.example/v1
+LLM_CHAT_MODEL=your-open-weights-model
+LLM_API_KEY=your-endpoint-key
+LLM_DISABLE_THINKING=true
+```
+
+Then start with the external-model override, which skips the bundled Ollama
+download:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.external-llm.yml up --build -d
+```
+
+For real patient data, the database, model inference, transcripts, logs, and
+backups must be deployed within the required legal and organizational boundary.
+The public Render MCP is synthetic-only and is not evidence of production data
+residency.
+
+## MCP server
+
+Nuktas exposes eight clinic-scoped tools:
+
+| Tool | Type | Effect |
+|---|---|---|
+| `get_waiting_queue` | Read | Returns the active clinic queue |
+| `get_latest_vitals` | Read | Returns the freshest observations |
+| `get_patient_history` | Read | Returns scoped patient context and visits |
+| `record_vitals` | Action | Validates and records observations |
+| `assess_triage_priority` | Action | Creates a pending deterministic SATS recommendation |
+| `flag_deterioration_for_review` | Action | Requests a governed second look |
+| `request_clinician_approval` | Action | Places a recommendation in clinical review |
+| `apply_approved_queue_update` | Gated action | Changes the queue only after named approval |
+
+Hospitals can use this MCP server as a local sidecar without adopting the Nuktas
+dashboard. See [MCP_INTEGRATION.md](MCP_INTEGRATION.md) for stdio and remote
+configurations, the approval boundary, and current HIS/FHIR limitations.
+
+### Public synthetic judge endpoint
+
+```text
+Current URL: https://nuktas-mcp-judge.onrender.com/mcp
+Custom domain: https://mcp.nuktas.robopotato.co/mcp (after Render verifies TLS)
+Transport: Streamable HTTP
+Authentication: Authorization: Bearer <judge token>
+```
+
+The endpoint contains synthetic records only. Request the rotating judge token
+from the Nuktas team; it is never committed to this repository.
+
+Example MCP host configuration:
+
+```json
+{
+  "mcpServers": {
+    "nuktas-judge": {
+      "url": "https://nuktas-mcp-judge.onrender.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${NUKTAS_MCP_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+Verify a deployment with the official MCP client included in this repository:
+
+```bash
+export MCP_URL=https://nuktas-mcp-judge.onrender.com/mcp
+export MCP_REMOTE_TOKEN='your-private-judge-token'
+npm --prefix mcp-server ci
+npm --prefix mcp-server run smoke:remote
+unset MCP_REMOTE_TOKEN
+```
+
+The expected result lists all eight tools and reports one synthetic queue entry.
+Render free PostgreSQL databases expire after 30 days, so the judge sandbox must
+be recreated or upgraded before that deadline.
 
 ## Architecture
 
+| Component | Technology | Responsibility |
+|---|---|---|
+| `client/` | React, TypeScript, Chakra UI | Clinical workspaces and real-time updates |
+| `server/` | Node.js, Express, Socket.IO | Authenticated workflow API and clinician decisions |
+| `agent/` | Python, FastAPI, Pydantic AI | Open-weights agent orchestration and step logging |
+| `mcp-server/` | Node.js, MCP SDK | Scoped tools, deterministic SATS, approval gate |
+| `protocols/` | Markdown policy | Runtime policy loaded through borrowed MCP |
+| `asr/` | FastAPI, Whisper | Optional English/Swahili voice pilot |
+| `tts/` | FastAPI, MMS/Chatterbox | Optional spoken responses |
+| PostgreSQL | PostgreSQL 16 | Queue, observations, recommendations, approvals, audit |
+
+The agent uses two MCP servers:
+
+- **Owned MCP:** the Nuktas triage server above.
+- **Borrowed MCP:** the official `@modelcontextprotocol/server-filesystem`,
+  restricted to `protocols/`, used to load the runtime triage policy.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for component and trust-boundary detail,
+and [docs/ADR-001-hosted-mcp.md](docs/ADR-001-hosted-mcp.md) for the hosted MCP
+decision.
+
+## Configuration
+
+The complete template is [.env.example](.env.example). Common overrides are:
+
+| Variable | Purpose | Local default |
+|---|---|---|
+| `JWT_SECRET` | Signs staff sessions | Demo value in Compose |
+| `AGENT_SERVICE_TOKEN` | Authenticates agent callbacks | Demo value in Compose |
+| `LLM_BASE_URL` | OpenAI-compatible model base URL | Bundled Ollama |
+| `LLM_CHAT_MODEL` | Agent/intake model name | `qwen2.5:7b-instruct` |
+| `LLM_API_KEY` | Model endpoint credential | `ollama` |
+| `EMBED_BASE_URL` | Optional in-country embedding endpoint | Keyword search fallback |
+| `TTS_ENGINE` | `mms` for CPU or `chatterbox` for GPU | `mms` |
+| `MCP_REMOTE_TOKEN` | Protects Streamable HTTP MCP | Demo-only local value |
+| `MCP_ALLOWED_HOSTS` | HTTP Host allow-list | `localhost,127.0.0.1` |
+
+Never use the Compose defaults for a public or clinical deployment.
+
+## Tests and verification
+
+```bash
+# MCP governance, SATS boundaries, HTTP authentication, and tool discovery
+npm --prefix mcp-server test
+
+# Agent policy and configuration tests
+cd agent
+PYTHONPATH=src .venv/bin/python -m pytest tests -q
+cd ..
+
+# Production client build
+npm --prefix client run build
+
+# Validate Compose definitions
+docker compose config --quiet
+docker compose -f docker-compose.mcp-judge.yml config --quiet
 ```
-client/                 React + Chakra UI (TypeScript)
-├── src/
-│   ├── hooks/
-│   │   ├── useAuth.ts           JWT auth state
-│   │   └── useClinicSocket.ts   Socket.IO real-time hook
-│   ├── pages/
-│   │   ├── LoginPage.tsx
-│   │   └── DashboardPage.tsx
-│   └── components/
-│       ├── QueueCard.tsx
-│       ├── StatsBar.tsx
-│       ├── CriticalAlertBanner.tsx
-│       └── UrgencyBadge.tsx
 
-server/                 Node.js + Express + Socket.IO
-├── src/
-│   ├── index.js               Entry point
-│   ├── db.js                  PostgreSQL pool
-│   ├── middleware/auth.js      JWT verification
-│   ├── models/
-│   │   ├── queue.js            Queue DB operations
-│   │   ├── clinics.js          Clinic & department lookups
-│   │   └── patients.js         Patient CRUD
-│   ├── routes/
-│   │   ├── auth.js             POST /api/auth/login, GET /api/auth/me
-│   │   ├── clinics.js          GET/POST /api/v1/clinics/:id/...
-│   │   └── patients.js         GET /api/v1/patients/:id/history
-│   ├── sockets/clinic.js       Socket.IO event handlers
-│   ├── webhooks/voice.js       Twilio TwiML webhook handlers
-│   ├── voice/callSession.js    In-memory call state (15-min TTL)
-│   └── services/
-│       ├── openai.js           OpenAI-compatible intake LLM (LLM_*)
-│       ├── twilio.js           TwiML string builders
-│       └── sms.js              Twilio SMS notifications
-└── db/
-    ├── schema.sql              PostgreSQL DDL
-    └── seed.js                 Demo data seeder
+Current verified baseline:
 
-## Socket.IO Events
+- MCP: 30 passing tests
+- Agent: 13 passing tests
+- Client: production build passes
+- Production MCP dependencies: 0 known audit vulnerabilities at last check
 
-| Event (server → client) | Payload |
-|--------------------------|---------|
-| `queue_state` | `{ queue, stats, critical_alerts }` — full snapshot on join |
-| `patient_joined` | `{ queue_entry }` — new patient from voice intake |
-| `status_update` | `{ entry_id, status, queue_entry }` |
-| `critical_alert` | `{ queue_entry }` |
-| `alert_acknowledged` | `{ entry_id, acknowledged_by, acknowledged_at }` |
+Evaluation cases, expected outcomes, pass/fail status, and the intentionally
+unfixed safety case are documented in [EVALS.md](EVALS.md).
 
-| Event (client → server) | Payload |
-|--------------------------|---------|
-| `join:clinic` | `{ clinicId }` |
-| `check_in` | `{ entry_id }` |
-| `update_status` | `{ entry_id, status }` |
-| `acknowledge_alert` | `{ entry_id }` |
-```
+## Voice intake status
 
----
+Voice intake remains an optional English/Swahili pilot and is deliberately not
+the core product claim. It should be promoted only after facility testing shows
+that it improves complaint completeness or intake time without increasing
+correction burden in real clinic noise. The routes remain available for
+research, but the primary workflow is staff queue → governed recommendation →
+clinician review.
 
-## Nuktas (Agentic Triage)
+See [docs/ADR-002-voice-intake-positioning.md](docs/ADR-002-voice-intake-positioning.md).
 
-This submission ("Nuktas") is a governed, SATS-grounded agentic triage assistant for the African Agentic AI Design Challenge (Healthcare: The Triage Desk).
+## Known limitations
 
-Key components:
-- **mcp-server/** (Node + MCP): 8 clinic-scoped tools; deterministic SATS (EMSSA 2012). Only `apply_approved_queue_update` writes to queue and requires a named clinician approval (`approvals`). The agent also uses the official borrowed filesystem MCP to load its restricted runtime policy.
-- **server/** (Express + Socket.IO): REST endpoints for triage governance (recommend/approve/reject/apply), service-token agent-run callbacks, LISTEN/NOTIFY→Socket.IO bridge, MCP client spawning the triage server.
-- **agent/** (Python + FastAPI + Pydantic AI): worker logs every tool call; uses Ollama (open-weights). Scripted model for evals.
-- **client/**: separate patient queue, clinical review, and activity/audit workspaces.
+- This is a hackathon prototype, not a certified medical device.
+- The hosted Render MCP uses synthetic data and free-tier infrastructure.
+- Production hospital integration still needs tenant-bound OAuth, key rotation,
+  retention controls, and a facility-specific FHIR/HL7/HIS adapter.
+- Real deployment requires in-boundary model inference and operational evidence
+  for data residency.
+- Voice intake needs structured usability testing with nurses and patients.
+- The documented under-triage omission case in [EVALS.md](EVALS.md) remains an
+  explicit safety gap to resolve before clinical use.
 
-Governance guarantees:
-- Never diagnoses, prescribes, or moves the queue without approval.
-- Priority is sourced from SATS (code decides). LLM proposes clinical signs only.
-- Audit trail on every tool call; gate on every irreversible action.
+## Further documentation
 
-Open-weights models (deploy inside the required country boundary for real patient data):
-- **ASR** — `Finiflowlabs/sauti-asr-v1` (Whisper-medium, Swahili, Apache-2.0).
-- **TTS** — default `facebook/mms-tts-swh` (Facebook MMS-TTS, VITS, CC-BY-NC-4.0): near real-time on CPU, the right engine for demo hosts. `TTS_ENGINE=chatterbox` switches to Resemble AI Chatterbox Multilingual (MIT, highest quality, Swahili built in) for GPU/production.
-- **Agent LLM** — any open-weights model behind an OpenAI-compatible API: the bundled Ollama (`qwen2.5:7b-instruct`) by default, or your own self-hosted server (e.g. vLLM serving `qwen3.8-27b`) via `LLM_BASE_URL` / `LLM_CHAT_MODEL` / `LLM_API_KEY` — the same setting the server's voice intake uses, so phone intake and the triage agent share one model. `AGENT_MODEL_*` still works as an agent-only override. If the model is a thinking model (e.g. Qwen3), set `LLM_DISABLE_THINKING=true` so short phone replies are not swallowed by the reasoning budget.
+- [Architecture](ARCHITECTURE.md)
+- [Evaluation evidence](EVALS.md)
+- [MCP integration guide](MCP_INTEGRATION.md)
+- [Hosted MCP decision](docs/ADR-001-hosted-mcp.md)
+- [Voice intake positioning](docs/ADR-002-voice-intake-positioning.md)
 
-Quick start (one command):
-1. With Colima, run `colima start` first. Then run `docker compose up --build` — starts postgres (schema applied automatically), server (demo data seeded automatically), client, asr, tts, ollama (open-weights model pulled by the one-shot `ollama-init`), and the agent. No `.env` is required: Docker ships safe defaults (schema/seed/secrets/model config are all wired in the compose file). To point the stack at your own OpenAI-compatible endpoint, set `LLM_BASE_URL`/`LLM_CHAT_MODEL`/`LLM_API_KEY` and run `docker compose -f docker-compose.yml -f docker-compose.external-llm.yml up --build`; the override skips the unused Ollama image and model pull.
-2. Access http://localhost (client) / http://localhost:4000 (server) and log in with `admin@nairobi.clinic` / `password123`.
+## License
 
-Deployment notes:
-- **First run** builds five images and downloads ~10 GB of open-weights models (Ollama `qwen2.5:7b-instruct` ~4.7 GB, Swahili ASR + TTS weights from Hugging Face). Plan 20–30 minutes on a fast connection.
-- **Resources**: 8 GB+ RAM recommended (the TTS container peaks near 5 GB on CPU). 4+ CPU cores.
-- **TTS engine**: default is MMS (`facebook/mms-tts-swh`) — near real-time on CPU, for demo hosts. On a GPU machine set `TTS_ENGINE=chatterbox` for Resemble AI Chatterbox Multilingual (MIT, highest quality; autoregressive, so it needs a GPU to be near real-time).
-- **Ports**: 80 (UI), 4000 (API), 8100 (agent), 8010 (ASR), 8011 (TTS), 11434 (Ollama). Postgres is loopback-only by default; move it with `POSTGRES_PORT`.
-
-Run MCP tests: `npm --prefix mcp-server test` (30/30 pass, including authenticated Streamable HTTP).
-
-Hospitals can use the governed MCP without adopting the Nuktas dashboard. See
-[`MCP_INTEGRATION.md`](MCP_INTEGRATION.md) for the supported local-sidecar model
-and the current limits of remote/HIS integration. A free synthetic judge
-deployment is defined in [`render.yaml`](render.yaml).
-Voice intake is deliberately a pilot rather than a headline workflow; see
-[`docs/ADR-002-voice-intake-positioning.md`](docs/ADR-002-voice-intake-positioning.md).
-Agent unit tests: `cd agent && PYTHONPATH=src .venv/bin/python -m pytest tests/ -v`.
-
-License: Apache 2.0. See `LICENSE`.
+Apache 2.0. See [LICENSE](LICENSE).
