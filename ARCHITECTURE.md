@@ -4,10 +4,10 @@
 Nuktas is the "Triage Desk" agent: intake → SATS prioritisation → clinician approval → governed queue change. Design: deterministic scoring (no LLM for priority), MCP as the sole DB boundary for governed writes, approval gate (named clinician), audit trail, bilingual intake, realtime updates.
 
 ## Components
-1. **mcp-server** (Node + MCP SDK, stdio) — tools enforce clinic scope; only `apply_approved_queue_update` touches queue and requires a matching `approvals` row. Deterministic SATS from EMSSA 2012 tables.
+1. **mcp-server** (Node + MCP SDK, stdio + authenticated Streamable HTTP) — tools enforce clinic scope; only `apply_approved_queue_update` touches queue and requires a matching `approvals` row. Deterministic SATS from EMSSA 2012 tables. The HTTP transport is for a synthetic judge sandbox, never a production hospital database.
 2. **server** (Express + Socket.IO + PostgreSQL) — REST API with JWT, service-token endpoints for the agent, LISTEN/NOTIFY→Socket.IO bridge, and an MCP client that spawns the mcp-server to call `apply_approved_queue_update`.
 3. **agent** (Python + FastAPI + Pydantic AI) — agent worker; orchestrates calls via MCP, logs every tool call back to the API, ensures clinician approval, uses Ollama (open-weights). Scripted model for evals.
-4. **client** (React + Vite + Chakra UI) — dashboard with queue, triage review board, audit/agent run panels, bilingual-aware UI.
+4. **client** (React + Vite + Chakra UI) — separate queue, clinical review, and activity/audit workspaces. Voice intake is an optional pilot route, not primary navigation.
 
 ## Data & governance
 - Tables: vitals, triage_assessments, approvals (gate), agent_runs, audit_events (append-only). Clinics organised; patients have age/height for variant selection.
@@ -21,7 +21,14 @@ get_waiting_queue, get_latest_vitals, get_patient_history, record_vitals, assess
 Postgres `LISTEN/NOTIFY` on channel `nuktas_events`; server bridge forwards to Socket.IO rooms `clinic:{id}`.
 
 ## Borrowed MCP
-@modelcontextprotocol/server-filesystem — for reading source files/artifacts in dev and verification. Rationale: standard, auditable, not authored by Nuktas; narrows file access.
+`@modelcontextprotocol/server-filesystem@2.2.0` runs in every triage task. Before
+the model executes, the orchestrator uses its `read_text_file` tool to load
+`protocols/TRIAGE_RUNTIME_POLICY.md` from the only allowed directory and records
+that call in the run steps. The policy becomes task context. The filesystem
+server runs with `--read-only --confine-roots` and is deliberately not exposed
+to the model as a write-capable toolset.
+Rationale: a standard, auditable server not authored by Nuktas, with a narrow
+filesystem boundary and a meaningful role in the end-to-end task.
 
 ## One-command / quick start
 `docker compose up --build` (services: postgres, server, client, asr, tts, ollama + one-shot `ollama-init` model pull). Agent runs as a service (AGENT_BASE_URL/AGENT_SERVICE_TOKEN); the server seeds demo data on boot. Model served by the bundled Ollama container — or point `LLM_BASE_URL`/`LLM_CHAT_MODEL`/`LLM_API_KEY` at any OpenAI-compatible server (self-hosted vLLM/TGI/LM Studio); `AGENT_MODEL_*` overrides the agent only.

@@ -100,6 +100,19 @@ async function main() {
       );
 
       const de = demoEntries[i];
+      const queueNum = `NC-${de.dept}-${de.urgency.slice(0, 4).toUpperCase()}-${String(i + 1).padStart(3, '0')}`;
+      const { rows: existingQueueEntries } = await client.query(
+        `SELECT id FROM queue_entries WHERE clinic_id = $1 AND queue_number = $2 LIMIT 1`,
+        [clinic.id, queueNum]
+      );
+
+      // The server runs this seed on startup. Reuse the stable queue number so
+      // restarts do not leave duplicate, unreferenced calls behind.
+      if (existingQueueEntries.length > 0) {
+        console.log(`  Queue: ${queueNum} — already seeded`);
+        continue;
+      }
+
       const { rows: [call] } = await client.query(
         `INSERT INTO calls (patient_id, clinic_id, language_code, chief_complaint, urgency_tier,
                             recommended_department, red_flag_detected, consent_given, call_status,
@@ -115,15 +128,13 @@ async function main() {
         ]
       );
 
-      const queueNum = `NC-${de.dept}-${de.urgency.slice(0, 4).toUpperCase()}-${String(i + 1).padStart(3, '0')}`;
       const waitByTier = { critical: 0, high: 30, medium: 90, low: 180 };
 
       await client.query(
         `INSERT INTO queue_entries
            (call_id, clinic_id, department_id, patient_id, queue_number, urgency_tier,
             position_in_queue, status, estimated_wait_time)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,'waiting',$8)
-         ON CONFLICT (queue_number) DO NOTHING`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,'waiting',$8)`,
         [
           call.id, clinic.id, deptIds[de.dept], patient.id,
           queueNum, de.urgency, i + 1, waitByTier[de.urgency],

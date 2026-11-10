@@ -1,0 +1,15 @@
+# Use this override when LLM_BASE_URL points at an external OpenAI-compatible
+# endpoint. It avoids pulling and starting the unused Ollama image.
+services:
+  ollama:
+    profiles: [bundled-llm]
+
+  ollama-init:
+    profiles: [bundled-llm]
+
+  agent:
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+      server:
+        condition: service_started

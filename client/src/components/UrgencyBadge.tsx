@@ -2,17 +2,17 @@ import { Box } from "@chakra-ui/react";
 import type { UrgencyTier } from "../types";
 
 const styles: Record<UrgencyTier, { bg: string; color: string; border: string }> = {
-  critical: { bg: "#E50000", color: "#FFFFFF", border: "#B30000" },
-  high:     { bg: "#FF6300", color: "#FFFFFF", border: "#CC4F00" },
-  medium:   { bg: "#F59B00", color: "#0A0A0A", border: "#CC7E00" },
-  low:      { bg: "#009944", color: "#FFFFFF", border: "#007733" },
+  critical: { bg: "#FFF1F2", color: "#B4232F", border: "#FECDD3" },
+  high:     { bg: "#FFF7ED", color: "#B45309", border: "#FED7AA" },
+  medium:   { bg: "#FFFBEB", color: "#975A16", border: "#FDE68A" },
+  low:      { bg: "#ECFDF5", color: "#176B58", border: "#A7F3D0" },
 };
 
 const urgencyAccent: Record<UrgencyTier, string> = {
-  critical: "#E50000",
-  high:     "#FF6300",
-  medium:   "#F59B00",
-  low:      "#009944",
+  critical: "#C93636",
+  high:     "#D97706",
+  medium:   "#D69E2E",
+  low:      "#23856D",
 };
 
 export function UrgencyBadge({ tier }: { tier: UrgencyTier }) {
@@ -23,16 +23,16 @@ export function UrgencyBadge({ tier }: { tier: UrgencyTier }) {
       display="inline-block"
       bg={s.bg}
       color={s.color}
-      border="1.5px solid"
+      border="1px solid"
       borderColor={s.border}
       fontWeight="800"
-      fontSize="9px"
-      letterSpacing="0.12em"
+      fontSize="10px"
+      letterSpacing="0.04em"
       textTransform="uppercase"
-      px="6px"
-      py="2px"
+      px={2.5}
+      py={1}
       lineHeight="1.4"
-      borderRadius="2px"
+      borderRadius="full"
       userSelect="none"
     >
       {tier}

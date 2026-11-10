@@ -6,6 +6,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { AsrIntakePage } from "./pages/AsrIntakePage";
 import { AsrConversationPage } from "./pages/AsrConversationPage";
 import { TriageReviewPage } from "./pages/TriageReviewPage";
+import { ActivityPage } from "./pages/ActivityPage";
 
 function AppRoutes() {
   const { user, token, loading, error, login, logout, clearSession, fetchMe } = useAuth();
@@ -63,6 +64,7 @@ function AppRoutes() {
         path="/triage/review/:clinic_id"
         element={<TriageReviewPage token={token} user={user} onLogout={handleLogout} />}
       />
+      <Route path="/activity/:clinic_id" element={<ActivityPage token={token} user={user} onLogout={handleLogout} />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );

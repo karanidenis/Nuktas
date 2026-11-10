@@ -266,7 +266,7 @@ async function fetchQueueEntry(entryId) {
 
 const ACTOR_SCHEMA = z.object({
   type: z.enum(['agent', 'user', 'system']).optional(),
-  id: z.string().optional(),
+  id: z.string().uuid().optional().describe('Optional database user UUID; omit for named agents and systems.'),
   name: z.string().optional(),
 }).optional();
 

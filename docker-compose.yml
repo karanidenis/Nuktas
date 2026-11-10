@@ -20,6 +20,24 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # Judge/integration endpoint. Deploy this service with a synthetic-only DB,
+  # HTTPS at the edge, and a rotated MCP_REMOTE_TOKEN.
+  mcp-remote:
+    build:
+      context: ./mcp-server
+      dockerfile: Dockerfile
+    environment:
+      MCP_DATABASE_URL: postgresql://postgres:postgres@postgres/nuktas
+      MCP_REMOTE_TOKEN: ${MCP_REMOTE_TOKEN:-local_judge_token_change_me}
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      MCP_RATE_LIMIT: ${MCP_RATE_LIMIT:-120}
+    ports:
+      - "127.0.0.1:${MCP_HTTP_PORT:-8200}:8200"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
   server:
     build:
       context: ./server
@@ -40,7 +58,10 @@ services:
       # inside the server container points back at the server itself.
       AGENT_BASE_URL: http://agent:8100
       AGENT_TIMEOUT_MS: ${AGENT_TIMEOUT_MS:-15000}
-      CLIENT_URL: ${CLIENT_URL:-http://localhost}
+      # Keep Docker's browser origin separate from CLIENT_URL, which is set to
+      # http://localhost:5173 in the local-development .env. Reusing that value
+      # here breaks API and Socket.IO CORS for the nginx UI on port 80.
+      CLIENT_URL: ${DOCKER_CLIENT_URL:-http://localhost}
       ASR_BASE_URL: http://asr:8010
       TTS_BASE_URL: http://tts:8011
       # LLM: bundled Ollama by default. Set LLM_* in .env to point Docker at your
@@ -97,7 +118,8 @@ services:
       timeout: 10s
       retries: 5
       # First run downloads the ~3 GB ASR weights during the startup preload.
-      start_period: 600s
+      # Allow for slower hackathon/demo Wi-Fi; cached starts are much faster.
+      start_period: 1800s
     restart: unless-stopped
 
   tts:
@@ -178,11 +200,15 @@ services:
       LLM_BASE_URL: ${LLM_BASE_URL:-http://ollama:11434/v1}
       LLM_CHAT_MODEL: ${LLM_CHAT_MODEL:-qwen2.5:7b-instruct}
       LLM_API_KEY: ${LLM_API_KEY:-ollama}
+      LLM_DISABLE_THINKING: ${LLM_DISABLE_THINKING:-false}
       MCP_DATABASE_URL: postgresql://postgres:postgres@postgres/nuktas
       DATABASE_URL: postgresql://postgres:postgres@postgres/nuktas
       MCP_SERVER_CMD: node
       MCP_SERVER_ENTRY: /app/mcp-server/src/index.js
       MCP_SERVER_CWD: /app/mcp-server
+      BORROWED_MCP_ENTRY: /app/mcp-server/node_modules/@modelcontextprotocol/server-filesystem/dist/index.js
+      BORROWED_MCP_ALLOWED_DIR: /app/protocols
+      BORROWED_MCP_PROTOCOL_PATH: /app/protocols/TRIAGE_RUNTIME_POLICY.md
       NUKTAS_REPO_ROOT: /app
     ports:
       - "8100:8100"

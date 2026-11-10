@@ -1,0 +1,79 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: nuktas
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - judge_postgres_data:/var/lib/postgresql/data
+      - ./server/db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d nuktas"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  bootstrap-api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres/nuktas
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      AGENT_SERVICE_TOKEN: ${AGENT_SERVICE_TOKEN:?set AGENT_SERVICE_TOKEN}
+      MCP_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres/nuktas
+      MCP_SERVER_CMD: node
+      MCP_SERVER_ENTRY: /app/mcp-server/src/index.js
+      MCP_SERVER_CWD: /app/mcp-server
+      NODE_PATH: /app/node_modules
+      PORT: "4000"
+      NODE_ENV: production
+    volumes:
+      - ./mcp-server:/app/mcp-server:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  mcp-remote:
+    build:
+      context: ./mcp-server
+      dockerfile: Dockerfile
+    environment:
+      MCP_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres/nuktas
+      MCP_REMOTE_TOKEN: ${MCP_REMOTE_TOKEN:?set MCP_REMOTE_TOKEN}
+      MCP_ALLOWED_HOSTS: ${MCP_DOMAIN:?set MCP_DOMAIN}
+      MCP_RATE_LIMIT: ${MCP_RATE_LIMIT:-120}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      bootstrap-api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      MCP_DOMAIN: ${MCP_DOMAIN:?set MCP_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - mcp-remote
+    restart: unless-stopped
+
+volumes:
+  judge_postgres_data:
+  caddy_data:
+  caddy_config:

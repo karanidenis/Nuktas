@@ -22,16 +22,17 @@ export function AuditLog({ clinicId, token }: Props) {
   }, [clinicId, token, base]);
 
   return (
-    <Box bg="white" border="2px solid" borderColor="#111" p={4} borderRadius="6px">
-      <Text fontWeight="800" mb={3}>Audit log</Text>
-      <VStack align="start" spacing={2} maxH="260px" overflowY="auto" w="full">
+    <Box bg="white" border="1px solid" borderColor="gray.200" p={5} borderRadius="xl" boxShadow="xs">
+      <Text fontWeight="800">Audit log</Text><Text fontSize="xs" color="gray.500" mt={1} mb={4}>Named actors and governed actions</Text>
+      <VStack align="start" spacing={0} maxH="420px" overflowY="auto" w="full">
         {events.map((ev) => (
-          <HStack key={ev.id} w="full" align="start">
-            <Badge size="sm">{ev.action}</Badge>
+          <HStack key={ev.id} w="full" align="start" py={2.5} borderTop="1px solid" borderColor="gray.100">
+            <Badge size="sm" textTransform="none" bg="gray.100" color="gray.700">{ev.action.split("_").join(" ")}</Badge>
             <Text fontSize="xs" color="gray.600">{ev.actor_name || ev.actor_type}</Text>
             <Text fontSize="xs" ml="auto" color="gray.500">{new Date(ev.inserted_at).toLocaleTimeString()}</Text>
           </HStack>
         ))}
+        {events.length === 0 && <Text fontSize="sm" color="gray.500">No audit activity recorded.</Text>}
       </VStack>
     </Box>
   );

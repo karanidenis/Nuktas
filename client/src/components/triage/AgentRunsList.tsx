@@ -30,11 +30,11 @@ export function AgentRunsList({ clinicId, token }: Props) {
   }, [clinicId, token, base]);
 
   return (
-    <Box bg="white" border="2px solid" borderColor="#111" p={4} borderRadius="6px">
-      <Text fontWeight="800" mb={3}>Agent runs</Text>
-      <VStack align="start" spacing={2} maxH="260px" overflowY="auto" w="full">
+    <Box bg="white" border="1px solid" borderColor="gray.200" p={5} borderRadius="xl" boxShadow="xs">
+      <Text fontWeight="800">Agent runs</Text><Text fontSize="xs" color="gray.500" mt={1} mb={4}>Model execution and terminal state</Text>
+      <VStack align="start" spacing={0} maxH="420px" overflowY="auto" w="full">
         {runs.map((r) => (
-          <HStack key={r.id} w="full">
+          <HStack key={r.id} w="full" py={2.5} borderTop="1px solid" borderColor="gray.100">
             <Badge colorScheme={r.status === "awaiting_approval" ? "orange" : r.status === "failed" ? "red" : "gray"}>
               {r.status}
             </Badge>
@@ -42,6 +42,7 @@ export function AgentRunsList({ clinicId, token }: Props) {
             <Text fontSize="xs" color="gray.600" ml="auto">{new Date(r.started_at).toLocaleTimeString()}</Text>
           </HStack>
         ))}
+        {runs.length === 0 && <Text fontSize="sm" color="gray.500">No agent runs recorded.</Text>}
       </VStack>
     </Box>
   );

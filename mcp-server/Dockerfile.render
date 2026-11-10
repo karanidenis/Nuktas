@@ -1,0 +1,13 @@
+FROM node:24-alpine
+
+WORKDIR /app
+COPY mcp-server/package*.json ./
+RUN npm ci --omit=dev
+
+COPY mcp-server/src ./src
+COPY server/db/schema.sql ./db/schema.sql
+COPY mcp-server/db/render-seed.sql ./db/render-seed.sql
+
+ENV NODE_ENV=production MCP_HOST=0.0.0.0 MCP_BOOTSTRAP_SYNTHETIC=true
+EXPOSE 10000
+CMD ["node", "src/http.js"]

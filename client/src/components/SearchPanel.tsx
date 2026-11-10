@@ -1,315 +1,107 @@
 import {
-  Modal, ModalOverlay, ModalContent, ModalBody,
-  Box, HStack, VStack, Text, Input, Spinner,
+  Modal, ModalOverlay, ModalContent, ModalBody, Box, HStack, VStack,
+  Text, Input, InputGroup, InputLeftElement, Spinner, Badge, Button,
 } from "@chakra-ui/react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { UrgencyBadge } from "./UrgencyBadge";
 
 interface SearchResult {
-  call_id: string;
-  patient_name: string;
-  patient_phone: string | null;
-  chief_complaint: string;
-  recommended_dept: string | null;
-  urgency_tier: string | null;
-  text_excerpt: string;
-  similarity_score: number;
-  date: string;
+  call_id: string; patient_name: string; patient_phone: string | null;
+  chief_complaint: string; recommended_dept: string | null;
+  urgency_tier: string | null; text_excerpt: string;
+  similarity_score: number | null; date: string;
 }
-
-interface Props {
-  isOpen: boolean;
-  onClose: () => void;
-  clinicId: string | undefined;
-  token: string | null;
-}
-
-function ScoreBar({ score }: { score: number }) {
-  return (
-    <HStack spacing={1} align="center">
-      {[0.7, 0.5, 0.3].map((threshold, i) => (
-        <Box
-          key={i}
-          w="10px"
-          h="3px"
-          bg={score >= threshold ? "#0047FF" : "gray.200"}
-        />
-      ))}
-      <Text fontSize="8px" color="gray.400" fontFamily="mono">
-        {Math.round(score * 100)}%
-      </Text>
-    </HStack>
-  );
-}
+interface Props { isOpen: boolean; onClose: () => void; clinicId: string | undefined; token: string | null; }
 
 export function SearchPanel({ isOpen, onClose, clinicId, token }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [mode, setMode] = useState<"private-keyword" | "local-semantic">("private-keyword");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // Focus input when opened
   useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 50);
-      setQuery("");
-      setResults([]);
-      setSearched(false);
-      setError(null);
-    }
+    if (!isOpen) return;
+    setTimeout(() => inputRef.current?.focus(), 50);
+    setQuery(""); setResults([]); setSearched(false); setError(null);
   }, [isOpen]);
 
-  const doSearch = useCallback(async (q: string) => {
-    if (!q.trim() || q.length < 2 || !clinicId || !token) return;
-    setLoading(true);
-    setError(null);
+  const doSearch = useCallback(async (value: string) => {
+    const clean = value.trim();
+    if (clean.length < 2 || !clinicId || !token) return;
+    setLoading(true); setError(null);
     try {
-      const res = await fetch(
-        `/api/v1/clinics/${clinicId}/search?q=${encodeURIComponent(q)}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setResults(data.results ?? []);
-      setSearched(true);
-    } catch (e: any) {
-      setError(e.message);
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
+      const response = await fetch(`/api/v1/clinics/${clinicId}/search?q=${encodeURIComponent(clean)}`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Search is temporarily unavailable");
+      setResults(data.results ?? []); setMode(data.mode ?? "private-keyword"); setSearched(true);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Search is temporarily unavailable"); setResults([]); setSearched(true);
+    } finally { setLoading(false); }
   }, [clinicId, token]);
 
-  const handleQueryChange = (val: string) => {
-    setQuery(val);
-    clearTimeout(debounceRef.current);
-    if (val.length >= 2) {
-      debounceRef.current = setTimeout(() => doSearch(val), 500);
-    } else {
-      setResults([]);
-      setSearched(false);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") onClose();
-    if (e.key === "Enter" && query.length >= 2) {
-      clearTimeout(debounceRef.current);
-      doSearch(query);
-    }
+  const updateQuery = (value: string) => {
+    setQuery(value); clearTimeout(debounceRef.current);
+    if (value.trim().length >= 2) debounceRef.current = setTimeout(() => doSearch(value), 450);
+    else { setResults([]); setSearched(false); setError(null); }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="xl" motionPreset="slideInTop">
-      <ModalOverlay bg="rgba(10,10,10,0.7)" backdropFilter="blur(2px)" />
-      <ModalContent
-        mt="80px"
-        borderRadius="0"
-        border="2px solid"
-        borderColor="neo.black"
-        boxShadow="8px 8px 0 #0A0A0A"
-        bg="#F5F0E8"
-        overflow="hidden"
-        maxH="70vh"
-      >
+    <Modal isOpen={isOpen} onClose={onClose} size="2xl" motionPreset="slideInTop">
+      <ModalOverlay />
+      <ModalContent mt={{ base: 4, md: 20 }} maxH="78vh">
         <ModalBody p={0}>
-          {/* Search input */}
-          <Box
-            borderBottom="2px solid"
-            borderColor="neo.black"
-            bg="white"
-            px={4}
-            py={3}
-          >
-            <HStack spacing={3}>
-              <Box
-                bg="#0A0A0A"
-                px={2}
-                py="3px"
-                fontSize="9px"
-                fontWeight="800"
-                color="#FFE600"
-                letterSpacing="0.1em"
-                textTransform="uppercase"
-                flexShrink={0}
-              >
-                AI SEARCH
-              </Box>
-              <Input
-                ref={inputRef}
-                variant="unstyled"
-                placeholder="Search voice transcripts semantically…"
-                value={query}
-                onChange={(e) => handleQueryChange(e.target.value)}
-                onKeyDown={handleKeyDown}
-                fontSize="sm"
-                fontWeight="600"
-                flex={1}
-              />
-              {loading && <Spinner size="xs" color="neo.blue" />}
-              <Box
-                border="1.5px solid"
-                borderColor="gray.300"
-                px={2}
-                py="2px"
-                fontSize="9px"
-                fontWeight="700"
-                color="gray.400"
-                letterSpacing="0.08em"
-                cursor="pointer"
-                onClick={onClose}
-                _hover={{ borderColor: "#E50000", color: "#E50000" }}
-              >
-                ESC
-              </Box>
+          <Box px={{ base: 4, md: 6 }} pt={5} pb={4} borderBottom="1px solid" borderColor="gray.200">
+            <HStack justify="space-between" mb={4}>
+              <Box><Text fontSize="lg" fontWeight="800" color="gray.900">Search patient records</Text><Text fontSize="xs" color="gray.500" mt={0.5}>Search is restricted to this clinic’s consented intake records.</Text></Box>
+              <Button size="sm" variant="ghost" onClick={onClose} aria-label="Close search">✕</Button>
             </HStack>
+            <InputGroup size="lg">
+              <InputLeftElement pointerEvents="none" color="gray.400">⌕</InputLeftElement>
+              <Input ref={inputRef} aria-label="Search patient records" placeholder="Try a patient name, chest pain, fever…" value={query} onChange={(event) => updateQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") onClose(); if (event.key === "Enter") { clearTimeout(debounceRef.current); doSearch(query); } }} pl={10} />
+              {loading && <Spinner position="absolute" right={4} top="14px" size="sm" color="blue.500" zIndex={2} />}
+            </InputGroup>
           </Box>
 
-          {/* Results area */}
-          <Box overflowY="auto" maxH="calc(70vh - 60px)">
-            {error && (
-              <Box p={4}>
-                <Text fontSize="sm" color="#E50000" fontWeight="600">Search error: {error}</Text>
-              </Box>
-            )}
+          <Box overflowY="auto" maxH="calc(78vh - 150px)" bg="gray.50" p={{ base: 4, md: 5 }}>
+            {error && <Box bg="red.50" border="1px solid" borderColor="red.200" borderRadius="lg" p={4}><Text fontWeight="700" color="red.700">We couldn’t complete that search</Text><Text fontSize="sm" color="red.600" mt={1}>{error}. Please try again.</Text></Box>}
 
             {!loading && !error && !searched && (
-              <Box p={6} textAlign="center">
-                <Text fontSize="2xl" mb={2}>🔍</Text>
-                <Text fontWeight="700" mb={1} fontSize="sm">Semantic Voice Transcript Search</Text>
-                <Text fontSize="xs" color="gray.500" maxW="320px" mx="auto" lineHeight="1.6">
-                  Search past intake calls by meaning, not just keywords.
-                  Try "chest pain elderly" or "child with fever".
-                </Text>
-                <HStack spacing={2} justify="center" mt={4} flexWrap="wrap">
-                  {["chest pain", "child with fever", "difficulty breathing", "diabetes management"].map((s) => (
-                    <Box
-                      key={s}
-                      as="button"
-                      onClick={() => { setQuery(s); handleQueryChange(s); }}
-                      border="1.5px solid"
-                      borderColor="gray.300"
-                      px={3}
-                      py="4px"
-                      fontSize="10px"
-                      fontWeight="700"
-                      bg="white"
-                      cursor="pointer"
-                      _hover={{ borderColor: "#0047FF", color: "#0047FF" }}
-                    >
-                      {s}
-                    </Box>
-                  ))}
+              <Box textAlign="center" py={8}>
+                <Box w="52px" h="52px" borderRadius="full" bg="blue.50" color="blue.600" display="grid" placeItems="center" mx="auto" fontSize="2xl">⌕</Box>
+                <Text fontWeight="750" color="gray.800" mt={3}>Find past intake records quickly</Text>
+                <Text fontSize="sm" color="gray.500" mt={1}>Search names, symptoms, complaints and transcript text.</Text>
+                <HStack spacing={2} justify="center" mt={5} flexWrap="wrap">
+                  {["chest pain", "child with fever", "difficulty breathing", "diabetes"].map((suggestion) => <Button key={suggestion} size="sm" variant="outline" onClick={() => updateQuery(suggestion)}>{suggestion}</Button>)}
                 </HStack>
               </Box>
             )}
 
-            {!loading && searched && results.length === 0 && (
-              <Box p={6} textAlign="center">
-                <Text fontSize="2xl" mb={2}>📭</Text>
-                <Text fontWeight="700" mb={1} fontSize="sm">No matching transcripts</Text>
-                <Text fontSize="xs" color="gray.500">
-                  Try different keywords or broader terms.
-                </Text>
-              </Box>
+            {!loading && searched && !error && results.length === 0 && (
+              <Box textAlign="center" py={10}><Text fontWeight="750" color="gray.800">No matching records</Text><Text fontSize="sm" color="gray.500" mt={1}>Try a broader symptom or check the patient spelling.</Text></Box>
             )}
 
             {results.length > 0 && (
-              <VStack spacing={0} align="stretch">
-                <Box
-                  px={4}
-                  py={2}
-                  borderBottom="1px solid"
-                  borderColor="gray.200"
-                  bg="white"
-                >
-                  <Text fontSize="9px" fontWeight="800" color="gray.400" textTransform="uppercase" letterSpacing="0.1em">
-                    {results.length} result{results.length !== 1 ? "s" : ""} · sorted by relevance
-                  </Text>
-                </Box>
-                {results.map((r, i) => (
-                  <Box
-                    key={`${r.call_id}-${i}`}
-                    px={4}
-                    py={3}
-                    borderBottom="1px solid"
-                    borderColor="gray.100"
-                    bg="white"
-                    _hover={{ bg: "#F5F0E8" }}
-                    cursor="default"
-                  >
-                    <HStack justify="space-between" mb={1}>
-                      <HStack spacing={2}>
-                        <Text fontSize="12px" fontWeight="800">{r.patient_name}</Text>
-                        {r.urgency_tier && <UrgencyBadge tier={r.urgency_tier as any} />}
-                      </HStack>
-                      <ScoreBar score={r.similarity_score} />
+              <VStack spacing={3} align="stretch">
+                <HStack justify="space-between"><Text fontSize="sm" color="gray.500"><Text as="span" fontWeight="800" color="gray.800">{results.length}</Text> matching records</Text><Badge bg="green.50" color="green.700">{mode === "local-semantic" ? "Local semantic" : "Private keyword"}</Badge></HStack>
+                {results.map((result) => (
+                  <Box key={result.call_id} bg="white" border="1px solid" borderColor="gray.200" borderRadius="xl" p={4} boxShadow="xs">
+                    <HStack justify="space-between" align="flex-start">
+                      <Box><HStack spacing={2}><Text fontWeight="800" color="gray.900">{result.patient_name}</Text>{result.urgency_tier && <UrgencyBadge tier={result.urgency_tier as any} />}</HStack><Text fontSize="sm" color="gray.700" fontWeight="600" mt={2}>{result.chief_complaint}</Text></Box>
+                      {result.similarity_score != null && <Badge bg="blue.50" color="blue.700">{Math.round(result.similarity_score * 100)}% match</Badge>}
                     </HStack>
-
-                    <Text fontSize="11px" fontWeight="600" color="gray.700" mb={1}>
-                      {r.chief_complaint}
-                    </Text>
-
-                    <HStack spacing={3} mb={1}>
-                      {r.recommended_dept && (
-                        <Text fontSize="10px" color="gray.500">
-                          → {r.recommended_dept}
-                        </Text>
-                      )}
-                      {r.patient_phone && (
-                        <Text fontSize="10px" color="gray.400" fontFamily="mono">
-                          {r.patient_phone}
-                        </Text>
-                      )}
-                    </HStack>
-
-                    <Text
-                      fontSize="10px"
-                      color="gray.400"
-                      lineHeight="1.5"
-                      noOfLines={2}
-                      fontFamily="mono"
-                    >
-                      {r.text_excerpt}
-                    </Text>
-
-                    <Text fontSize="9px" color="gray.300" mt={1}>
-                      {new Date(r.date).toLocaleDateString("en-GB", {
-                        day: "2-digit", month: "short", year: "numeric",
-                        hour: "2-digit", minute: "2-digit",
-                      })}
-                    </Text>
+                    <Text fontSize="sm" color="gray.500" lineHeight="1.55" mt={2} noOfLines={3}>{result.text_excerpt}</Text>
+                    <HStack mt={3} color="gray.400" fontSize="xs" spacing={3}>{result.recommended_dept && <Text>{result.recommended_dept}</Text>}<Text>{new Date(result.date).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" })}</Text></HStack>
                   </Box>
                 ))}
               </VStack>
             )}
           </Box>
 
-          {/* Footer */}
-          <Box
-            borderTop="2px solid"
-            borderColor="neo.black"
-            px={4}
-            py={2}
-            bg="white"
-          >
-            <HStack spacing={4}>
-              <HStack spacing={1}>
-                <Box border="1px solid" borderColor="gray.300" px={1} fontSize="9px" fontWeight="700" color="gray.400">↵</Box>
-                <Text fontSize="9px" color="gray.400">search</Text>
-              </HStack>
-              <HStack spacing={1}>
-                <Box border="1px solid" borderColor="gray.300" px={1} fontSize="9px" fontWeight="700" color="gray.400">ESC</Box>
-                <Text fontSize="9px" color="gray.400">close</Text>
-              </HStack>
-              <Text fontSize="9px" color="gray.300" ml="auto">
-                Semantic search over transcripts
-              </Text>
-            </HStack>
-          </Box>
+          <HStack px={5} py={3} borderTop="1px solid" borderColor="gray.200" justify="space-between" bg="white"><Text fontSize="xs" color="gray.400">Enter to search • Esc to close</Text><HStack spacing={1}><Box w="7px" h="7px" borderRadius="full" bg="green.500" /><Text fontSize="xs" color="gray.500">Clinic data stays private</Text></HStack></HStack>
         </ModalBody>
       </ModalContent>
     </Modal>

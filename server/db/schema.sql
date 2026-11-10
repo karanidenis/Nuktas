@@ -88,6 +88,22 @@ CREATE TABLE IF NOT EXISTS calls (
   updated_at             TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Optional local semantic-search index. When no in-country embedding endpoint
+-- is configured, search falls back to private PostgreSQL keyword matching.
+CREATE TABLE IF NOT EXISTS call_embeddings (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  call_id     UUID NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
+  patient_id  UUID REFERENCES patients(id) ON DELETE SET NULL,
+  clinic_id   UUID REFERENCES clinics(id) ON DELETE CASCADE,
+  text_chunk  TEXT NOT NULL,
+  embedding   JSONB NOT NULL,
+  inserted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(call_id)
+);
+
+CREATE INDEX IF NOT EXISTS call_embeddings_clinic_idx ON call_embeddings (clinic_id);
+CREATE INDEX IF NOT EXISTS call_embeddings_call_idx ON call_embeddings (call_id);
+
 CREATE TABLE IF NOT EXISTS queue_entries (
   id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   call_id                     UUID NOT NULL REFERENCES calls(id),

@@ -13,10 +13,8 @@
  * Run:  node src/index.js
  */
 
-const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
 const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js');
-
-const { registerTools } = require('./tools');
+const { buildServer } = require('./server');
 
 function log(msg, meta) {
   // stdio transport: stdout is the protocol channel, so logs go to stderr.
@@ -25,12 +23,7 @@ function log(msg, meta) {
 }
 
 async function main() {
-  const server = new McpServer({
-    name: 'nuktas-triage',
-    version: '0.1.0',
-  });
-
-  registerTools(server, { log });
+  const server = buildServer(log);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

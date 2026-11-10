@@ -1,92 +1,27 @@
 import { Box, HStack, Text, Button, VStack } from "@chakra-ui/react";
 import type { QueueEntry } from "../types";
 
-interface Props {
-  alerts: QueueEntry[];
-  onAcknowledge: (id: string) => void;
-}
+interface Props { alerts: QueueEntry[]; onAcknowledge: (id: string) => void; }
 
 export function CriticalAlertBanner({ alerts, onAcknowledge }: Props) {
   if (alerts.length === 0) return null;
-
   return (
-    <VStack spacing={2} mb={5} align="stretch">
+    <VStack spacing={3} mb={6} align="stretch">
       {alerts.map((entry) => (
-        <Box
-          key={entry.id}
-          bg="#E50000"
-          border="2px solid"
-          borderColor="#0A0A0A"
-          boxShadow="4px 4px 0 #0A0A0A"
-          p={0}
-          overflow="hidden"
-          sx={{
-            animation: "none",
-          }}
-        >
-          {/* Stripe header bar */}
-          <Box
-            bg="#0A0A0A"
-            px={4}
-            py="6px"
-            sx={{
-              backgroundImage:
-                "repeating-linear-gradient(45deg, #0A0A0A 0px, #0A0A0A 10px, #E50000 10px, #E50000 20px)",
-            }}
-          />
-
-          <HStack px={4} py={3} justify="space-between" align="center" flexWrap="wrap" gap={3}>
-            <HStack spacing={3}>
-              <Text
-                fontWeight="800"
-                fontSize="sm"
-                color="white"
-                textTransform="uppercase"
-                letterSpacing="0.1em"
-              >
-                🚨 CRITICAL
-              </Text>
-              <Box
-                bg="white"
-                color="#E50000"
-                px={2}
-                py="2px"
-                fontWeight="800"
-                fontSize="xs"
-                letterSpacing="0.06em"
-                borderRadius="2px"
-              >
-                {entry.queue_number}
+        <Box key={entry.id} bg="red.50" border="1px solid" borderColor="red.200" borderLeft="5px solid" borderLeftColor="red.500" borderRadius="xl" p={4} boxShadow="xs">
+          <HStack justify="space-between" align={{ base: "flex-start", md: "center" }} flexDirection={{ base: "column", md: "row" }} gap={3}>
+            <HStack spacing={3} align="flex-start">
+              <Box w="38px" h="38px" flexShrink={0} borderRadius="full" bg="red.500" color="white" display="grid" placeItems="center" fontSize="lg" fontWeight="800">!</Box>
+              <Box>
+                <HStack spacing={2} flexWrap="wrap">
+                  <Text color="red.700" fontWeight="800">Immediate clinical review</Text>
+                  <Text bg="white" border="1px solid" borderColor="red.200" borderRadius="md" px={2} py={0.5} fontFamily="mono" fontSize="xs" fontWeight="700">{entry.queue_number}</Text>
+                </HStack>
+                <Text fontSize="sm" fontWeight="700" color="gray.900" mt={1}>{entry.patient?.name ?? "Unknown patient"}</Text>
+                <Text fontSize="sm" color="gray.600" mt={0.5}>{entry.chief_complaint || "Critical triage flag"}{entry.department ? ` • ${entry.department.name}` : ""}</Text>
               </Box>
-              <Text fontWeight="700" fontSize="sm" color="white">
-                {entry.patient?.name ?? "Unknown Patient"}
-              </Text>
-              {entry.department && (
-                <Text fontSize="xs" color="rgba(255,255,255,0.7)" fontWeight="600">
-                  · {entry.department.name}
-                </Text>
-              )}
             </HStack>
-
-            <HStack spacing={2}>
-              {entry.chief_complaint && (
-                <Text fontSize="xs" color="rgba(255,255,255,0.85)" fontStyle="italic" maxW="240px" noOfLines={1}>
-                  "{entry.chief_complaint}"
-                </Text>
-              )}
-              <Button
-                size="xs"
-                bg="white"
-                color="#E50000"
-                fontWeight="800"
-                border="2px solid white"
-                _hover={{ bg: "#FFE600", borderColor: "#0A0A0A", color: "#0A0A0A" }}
-                onClick={() => onAcknowledge(entry.id)}
-                flexShrink={0}
-              >
-                Acknowledge ✓
-              </Button>
-            </HStack>
+            <Button size="sm" bg="red.600" color="white" _hover={{ bg: "red.700" }} onClick={() => onAcknowledge(entry.id)} flexShrink={0}>Acknowledge alert</Button>
           </HStack>
         </Box>
       ))}

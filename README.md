@@ -1,13 +1,13 @@
 # Nuktas — Clinic Queue + Agentic Triage (Node.js)
 
-AI-powered clinic queue management for East Africa.
-Voice intake via Twilio → AI triage via OpenAI → real-time dashboard via Socket.IO.
+Governed, SATS-grounded clinical priority support for hospital triage teams.
+The agent proposes; a named clinician decides before the queue changes.
 
 ## Stack
 
 - **Backend** — Node.js, Express, Socket.IO, PostgreSQL (`pg`)
 - **Frontend** — React 18, Chakra UI v2, TypeScript, Vite, `socket.io-client`
-- **Voice** — Twilio Programmable Voice + TwiML (optional)
+- **Voice pilot** — optional local EN/SW intake channel; intentionally outside the core workflow pending facility validation
 - **AI** — any OpenAI-compatible endpoint via `LLM_BASE_URL`/`LLM_API_KEY`/`LLM_CHAT_MODEL` (bundled Ollama by default; vLLM, LocalAI, or OpenAI also work)
 - **SMS** — Twilio Messaging
 
@@ -17,7 +17,8 @@ Voice intake via Twilio → AI triage via OpenAI → real-time dashboard via Soc
 
 ```sh
 cp .env.example .env
-# Edit .env — set DATABASE_URL, JWT_SECRET, AI config, TWILIO_* (optional)
+# Edit .env — set DATABASE_URL, JWT_SECRET, AI config, TWILIO_* (optional).
+# CLIENT_URL is for the Vite dev server; DOCKER_CLIENT_URL is for Docker/nginx.
 ```
 
 ### 2. Database
@@ -154,23 +155,23 @@ server/                 Node.js + Express + Socket.IO
 This submission ("Nuktas") is a governed, SATS-grounded agentic triage assistant for the African Agentic AI Design Challenge (Healthcare: The Triage Desk).
 
 Key components:
-- **mcp-server/** (Node + MCP): 8 clinic-scoped tools; deterministic SATS (EMSSA 2012). Only `apply_approved_queue_update` writes to queue and requires a named clinician approval (`approvals`).
+- **mcp-server/** (Node + MCP): 8 clinic-scoped tools; deterministic SATS (EMSSA 2012). Only `apply_approved_queue_update` writes to queue and requires a named clinician approval (`approvals`). The agent also uses the official borrowed filesystem MCP to load its restricted runtime policy.
 - **server/** (Express + Socket.IO): REST endpoints for triage governance (recommend/approve/reject/apply), service-token agent-run callbacks, LISTEN/NOTIFY→Socket.IO bridge, MCP client spawning the triage server.
 - **agent/** (Python + FastAPI + Pydantic AI): worker logs every tool call; uses Ollama (open-weights). Scripted model for evals.
-- **client/**: triage review board, audit log, agent runs, bilingual-aware UI.
+- **client/**: separate patient queue, clinical review, and activity/audit workspaces.
 
 Governance guarantees:
 - Never diagnoses, prescribes, or moves the queue without approval.
 - Priority is sourced from SATS (code decides). LLM proposes clinical signs only.
 - Audit trail on every tool call; gate on every irreversible action.
 
-Open-weights models (all run locally — patient data never leaves the country):
+Open-weights models (deploy inside the required country boundary for real patient data):
 - **ASR** — `Finiflowlabs/sauti-asr-v1` (Whisper-medium, Swahili, Apache-2.0).
 - **TTS** — default `facebook/mms-tts-swh` (Facebook MMS-TTS, VITS, CC-BY-NC-4.0): near real-time on CPU, the right engine for demo hosts. `TTS_ENGINE=chatterbox` switches to Resemble AI Chatterbox Multilingual (MIT, highest quality, Swahili built in) for GPU/production.
 - **Agent LLM** — any open-weights model behind an OpenAI-compatible API: the bundled Ollama (`qwen2.5:7b-instruct`) by default, or your own self-hosted server (e.g. vLLM serving `qwen3.8-27b`) via `LLM_BASE_URL` / `LLM_CHAT_MODEL` / `LLM_API_KEY` — the same setting the server's voice intake uses, so phone intake and the triage agent share one model. `AGENT_MODEL_*` still works as an agent-only override. If the model is a thinking model (e.g. Qwen3), set `LLM_DISABLE_THINKING=true` so short phone replies are not swallowed by the reasoning budget.
 
 Quick start (one command):
-1. `docker compose up --build` — starts postgres (schema applied automatically), server (demo data seeded automatically), client, asr, tts, ollama (open-weights model pulled by the one-shot `ollama-init`), and the agent. No `.env` is required: Docker ships safe defaults (schema/seed/secrets/model config are all wired in the compose file). Copy `.env.example` to `.env` only to override them — e.g. to point the stack at your own OpenAI-compatible endpoint (set `LLM_BASE_URL`/`LLM_CHAT_MODEL`/`LLM_API_KEY`; when set, the bundled Ollama model pull is skipped automatically).
+1. With Colima, run `colima start` first. Then run `docker compose up --build` — starts postgres (schema applied automatically), server (demo data seeded automatically), client, asr, tts, ollama (open-weights model pulled by the one-shot `ollama-init`), and the agent. No `.env` is required: Docker ships safe defaults (schema/seed/secrets/model config are all wired in the compose file). To point the stack at your own OpenAI-compatible endpoint, set `LLM_BASE_URL`/`LLM_CHAT_MODEL`/`LLM_API_KEY` and run `docker compose -f docker-compose.yml -f docker-compose.external-llm.yml up --build`; the override skips the unused Ollama image and model pull.
 2. Access http://localhost (client) / http://localhost:4000 (server) and log in with `admin@nairobi.clinic` / `password123`.
 
 Deployment notes:
@@ -179,7 +180,14 @@ Deployment notes:
 - **TTS engine**: default is MMS (`facebook/mms-tts-swh`) — near real-time on CPU, for demo hosts. On a GPU machine set `TTS_ENGINE=chatterbox` for Resemble AI Chatterbox Multilingual (MIT, highest quality; autoregressive, so it needs a GPU to be near real-time).
 - **Ports**: 80 (UI), 4000 (API), 8100 (agent), 8010 (ASR), 8011 (TTS), 11434 (Ollama). Postgres is loopback-only by default; move it with `POSTGRES_PORT`.
 
-Run MCP tests: `cd mcp-server && node --test test/` (28/28 pass).
+Run MCP tests: `npm --prefix mcp-server test` (30/30 pass, including authenticated Streamable HTTP).
+
+Hospitals can use the governed MCP without adopting the Nuktas dashboard. See
+[`MCP_INTEGRATION.md`](MCP_INTEGRATION.md) for the supported local-sidecar model
+and the current limits of remote/HIS integration. A free synthetic judge
+deployment is defined in [`render.yaml`](render.yaml).
+Voice intake is deliberately a pilot rather than a headline workflow; see
+[`docs/ADR-002-voice-intake-positioning.md`](docs/ADR-002-voice-intake-positioning.md).
 Agent unit tests: `cd agent && PYTHONPATH=src .venv/bin/python -m pytest tests/ -v`.
 
 License: Apache 2.0. See `LICENSE`.

@@ -43,6 +43,12 @@ test('the MCP server registers every advertised tool (listTools over the wire)',
     assert.ok(t.description && t.description.length > 20, `${t.name} has a description`);
     assert.ok(t.inputSchema, `${t.name} has an input schema`);
   }
+  const assess = tools.find((t) => t.name === 'assess_triage_priority');
+  assert.equal(
+    assess.inputSchema.properties.actor.properties.id.format,
+    'uuid',
+    'actor ids must be database UUIDs; named agents should omit id'
+  );
 
   await client.close();
   await server.close();

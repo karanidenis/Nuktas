@@ -20,7 +20,7 @@ from mcp.client.stdio import stdio_client
 
 from .config import settings
 
-__all__ = ["call_tool", "list_tool_names"]
+__all__ = ["call_tool", "list_tool_names", "read_runtime_policy"]
 
 
 def _params() -> StdioServerParameters:
@@ -56,6 +56,24 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
             await session.initialize()
             result = await session.call_tool(name, arguments)
             return _parse(result)
+
+
+async def read_runtime_policy() -> str:
+    """Read the task policy through the official borrowed filesystem MCP."""
+    params = StdioServerParameters(
+        command=settings.borrowed_mcp_command,
+        args=list(settings.borrowed_mcp_args),
+        env=settings.mcp_env,
+        cwd=settings.borrowed_mcp_cwd,
+    )
+    async with stdio_client(params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            result = await session.call_tool(
+                "read_text_file", {"path": settings.borrowed_protocol_path}
+            )
+            parsed = _parse(result)
+            return str(parsed.get("raw") or parsed.get("text") or "")
 
 
 async def list_tool_names() -> list[str]:

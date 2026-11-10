@@ -36,6 +36,7 @@ class Settings:
     model_name: str
     model_base_url: str
     model_api_key: str
+    disable_thinking: bool
     max_agent_retries: int
 
     # ── MCP boundary ──────────────────────────────────────────────────────
@@ -43,6 +44,12 @@ class Settings:
     mcp_args: tuple[str, ...]
     mcp_cwd: str
     mcp_env: dict[str, str] = field(default_factory=dict)
+
+    # ── Borrowed MCP (official filesystem server) ─────────────────────────
+    borrowed_mcp_command: str = "node"
+    borrowed_mcp_args: tuple[str, ...] = ()
+    borrowed_mcp_cwd: str = ""
+    borrowed_protocol_path: str = ""
 
     @property
     def scripted(self) -> bool:
@@ -64,6 +71,15 @@ def load_settings() -> Settings:
     mcp_cwd = os.environ.get("MCP_SERVER_CWD") or str(Path(mcp_entry).resolve().parent.parent)
     mcp_command = os.environ.get("MCP_SERVER_CMD") or "node"
 
+    borrowed_entry = os.environ.get("BORROWED_MCP_ENTRY") or str(
+        root / "mcp-server" / "node_modules" / "@modelcontextprotocol"
+        / "server-filesystem" / "dist" / "index.js"
+    )
+    protocol_dir = os.environ.get("BORROWED_MCP_ALLOWED_DIR") or str(root / "protocols")
+    protocol_path = os.environ.get("BORROWED_MCP_PROTOCOL_PATH") or str(
+        Path(protocol_dir) / "TRIAGE_RUNTIME_POLICY.md"
+    )
+
     database_url = os.environ.get("MCP_DATABASE_URL") or os.environ.get("DATABASE_URL") or ""
 
     mcp_env = dict(os.environ)
@@ -81,11 +97,17 @@ def load_settings() -> Settings:
                          or os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")).rstrip("/")),
         model_api_key=(os.environ.get("AGENT_MODEL_API_KEY") or os.environ.get("LLM_API_KEY")
                        or os.environ.get("OLLAMA_API_KEY", "ollama")),
+        disable_thinking=(os.environ.get("LLM_DISABLE_THINKING", "").lower()
+                          in {"1", "true", "yes", "on"}),
         max_agent_retries=int(os.environ.get("AGENT_MAX_RETRIES", "2")),
         mcp_command=mcp_command,
         mcp_args=(mcp_entry,),
         mcp_cwd=mcp_cwd,
         mcp_env=mcp_env,
+        borrowed_mcp_command=os.environ.get("BORROWED_MCP_CMD", "node"),
+        borrowed_mcp_args=(borrowed_entry, "--read-only", "--confine-roots", protocol_dir),
+        borrowed_mcp_cwd=str(root),
+        borrowed_protocol_path=protocol_path,
     )
 
 

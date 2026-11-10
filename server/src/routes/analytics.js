@@ -282,8 +282,8 @@ router.get('/clinics/:clinic_id/search', asyncHandler(async (req, res) => {
   if (query.length < 2) return res.status(400).json({ error: 'Query too short' });
 
   try {
-    const results = await searchTranscripts(clinic_id, query);
-    res.json({ query, results, count: results.length });
+    const search = await searchTranscripts(clinic_id, query);
+    res.json({ query, mode: search.mode, results: search.results, count: search.results.length });
   } catch (err) {
     console.error('transcript search error:', err);
     res.status(500).json({ error: 'Search failed', message: err.message });

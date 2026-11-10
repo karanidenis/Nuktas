@@ -1,62 +1,30 @@
-import { Grid, Box, Text } from "@chakra-ui/react";
+import { Grid, Box, Text, HStack } from "@chakra-ui/react";
 import type { QueueStats } from "../types";
 
-interface StatProps {
-  label: string;
-  value: string | number;
-  bg: string;
-  color?: string;
-  wide?: boolean;
-}
-
-function StatBox({ label, value, bg, color = "#0A0A0A", wide }: StatProps) {
-  return (
-    <Box
-      bg={bg}
-      border="2px solid"
-      borderColor="neo.black"
-      boxShadow="3px 3px 0 #0A0A0A"
-      p={4}
-      gridColumn={wide ? "span 2" : undefined}
-      position="relative"
-      overflow="hidden"
-    >
-      <Text
-        fontSize="28px"
-        fontWeight="800"
-        lineHeight="1"
-        color={color}
-        fontFamily="mono"
-        mb={1}
-      >
-        {value}
-      </Text>
-      <Text
-        fontSize="9px"
-        fontWeight="700"
-        textTransform="uppercase"
-        letterSpacing="0.12em"
-        color={color}
-        opacity={0.7}
-      >
-        {label}
-      </Text>
-    </Box>
-  );
-}
+const cards = [
+  { key: "waiting", label: "Waiting", hint: "Awaiting assessment", color: "#1261A0", bg: "#EFF6FF", icon: "◷" },
+  { key: "checked_in", label: "Checked in", hint: "Ready at the desk", color: "#6D5BD0", bg: "#F5F3FF", icon: "✓" },
+  { key: "in_progress", label: "In care", hint: "With a clinician", color: "#23856D", bg: "#ECFDF5", icon: "+" },
+  { key: "critical", label: "Critical", hint: "Needs immediate review", color: "#C93636", bg: "#FFF1F2", icon: "!" },
+] as const;
 
 export function StatsBar({ stats }: { stats: QueueStats }) {
   return (
-    <Grid
-      templateColumns={{ base: "repeat(3, 1fr)", md: "repeat(5, 1fr)" }}
-      gap={3}
-      mb={5}
-    >
-      <StatBox label="Total Queue"  value={stats.total}        bg="#FFFFFF" />
-      <StatBox label="Waiting"      value={stats.waiting}      bg="#F5F0E8" />
-      <StatBox label="In Progress"  value={stats.in_progress}  bg="#0047FF" color="#FFFFFF" />
-      <StatBox label="Critical"     value={stats.critical}     bg={stats.critical > 0 ? "#E50000" : "#FFFFFF"} color={stats.critical > 0 ? "#FFFFFF" : "#0A0A0A"} />
-      <StatBox label="Avg Wait"     value={stats.avg_wait > 0 ? `${stats.avg_wait}m` : "—"} bg="#FFE600" />
+    <Grid templateColumns={{ base: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }} gap={3} mb={6}>
+      {cards.map((card) => (
+        <Box key={card.key} bg="white" border="1px solid" borderColor="gray.200" borderRadius="xl" p={4} boxShadow="xs">
+          <HStack justify="space-between" align="flex-start">
+            <Box>
+              <Text fontSize="sm" color="gray.600" fontWeight="600">{card.label}</Text>
+              <Text fontSize="3xl" color="gray.900" fontWeight="750" lineHeight="1.1" mt={1}>{stats[card.key]}</Text>
+            </Box>
+            <Box w="38px" h="38px" borderRadius="lg" bg={card.bg} color={card.color} display="grid" placeItems="center" fontSize="lg" fontWeight="800">
+              {card.icon}
+            </Box>
+          </HStack>
+          <Text fontSize="xs" color="gray.400" mt={3}>{card.hint}</Text>
+        </Box>
+      ))}
     </Grid>
   );
 }

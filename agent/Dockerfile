@@ -1,11 +1,16 @@
+FROM node:24-slim AS node-runtime
+
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# Node.js runs the governed MCP triage server that the worker spawns over stdio.
-RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm \
-    && rm -rf /var/lib/apt/lists/*
+# Node.js runs both MCP servers. The official filesystem server 2.x requires
+# Node 24, so copy that runtime into the Python worker image.
+COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-runtime /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
 WORKDIR /app
 
@@ -20,6 +25,10 @@ RUN pip install --no-cache-dir -e .
 # works with no host-side npm install. The build context is the repo root.
 COPY mcp-server /app/mcp-server
 RUN cd /app/mcp-server && npm install --omit=dev
+
+# Read-only-at-the-orchestrator policy artifacts loaded through the borrowed
+# Model Context Protocol filesystem server during every triage run.
+COPY protocols /app/protocols
 
 EXPOSE 8100
 

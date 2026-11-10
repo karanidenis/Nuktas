@@ -67,13 +67,19 @@ class TriageBrief(BaseModel):
     approval_requested: bool = False
 
 
-def _prompt_for(run: RunInput) -> str:
+def _prompt_for(run: RunInput, runtime_policy: str = "") -> str:
+    policy_block = (
+        f"\nRuntime policy loaded through the borrowed filesystem MCP:\n{runtime_policy[:4000]}\n"
+        if runtime_policy
+        else ""
+    )
     return (
         f"Clinic: {run.clinic_id}\n"
         f"Patient: {run.patient_id}\n"
         f"Queue entry: {run.queue_entry_id or 'none (not yet queued)'}\n"
         f"Intake language: {run.language}\n"
         f"Chief complaint (verbatim, may be Swahili): {run.chief_complaint or 'not captured'}\n\n"
+        f"{policy_block}\n"
         "Assess this patient's SATS triage priority and put the recommendation in "
         "front of a clinician for approval. Follow the protocol exactly."
     )
@@ -93,11 +99,20 @@ def _build_model(run: RunInput):
 
 
 def _build_agent(model: Any, toolset: GovernedToolset) -> Agent:
+    # Qwen3-compatible endpoints accept this vLLM/Ollama chat-template flag.
+    # Without it, short structured runs can spend their entire output budget on
+    # hidden reasoning and return no tool call or final content.
+    model_settings = (
+        {"extra_body": {"chat_template_kwargs": {"enable_thinking": False}}}
+        if settings.disable_thinking and not settings.scripted
+        else None
+    )
     return Agent(
         model,
         output_type=TriageBrief,
         toolsets=[toolset],
         system_prompt=SYSTEM_PROMPT,
+        model_settings=model_settings,
         retries=settings.max_agent_retries,
     )
 
@@ -144,10 +159,38 @@ async def run_triage(run: RunInput) -> dict[str, Any]:
         )
 
         toolset = GovernedToolset(recorder=recorder)
+        runtime_policy = ""
+        borrowed_mcp_used = False
+
+        # The challenge requires a second MCP server. The official filesystem
+        # server loads a narrowly scoped runtime-policy artifact; it is never
+        # exposed to the model as a write-capable toolset.
+        try:
+            runtime_policy = await mcp_client.read_runtime_policy()
+            borrowed_mcp_used = bool(runtime_policy)
+            await recorder.log_step(
+                {
+                    "kind": "borrowed_mcp",
+                    "name": "filesystem.read_text_file",
+                    "ok": borrowed_mcp_used,
+                    "detail": "Loaded TRIAGE_RUNTIME_POLICY.md from the allowed protocol directory.",
+                    "ts": time.time(),
+                }
+            )
+        except Exception as exc:  # noqa: BLE001
+            await recorder.log_step(
+                {
+                    "kind": "borrowed_mcp",
+                    "name": "filesystem.read_text_file",
+                    "ok": False,
+                    "error": str(exc),
+                    "ts": time.time(),
+                }
+            )
 
         try:
             agent = _build_agent(_build_model(run), toolset)
-            result = await agent.run(_prompt_for(run))
+            result = await agent.run(_prompt_for(run, runtime_policy))
             brief: TriageBrief = result.output
             tokens_in, tokens_out = _usage_counts(result)
         except Exception as exc:  # noqa: BLE001
@@ -221,5 +264,6 @@ async def run_triage(run: RunInput) -> dict[str, Any]:
 
         payload = brief.model_dump()
         payload["tool_call_count"] = toolset.tool_call_count
+        payload["borrowed_mcp_used"] = borrowed_mcp_used
         payload["callback_failures"] = recorder.failures
         return payload

@@ -1,286 +1,55 @@
-import { Box, VStack, HStack, Text, Input, Button, FormControl, FormLabel } from "@chakra-ui/react";
+import { Box, VStack, HStack, Text, Input, Button, FormControl, FormLabel, Badge, SimpleGrid } from "@chakra-ui/react";
 import { useState } from "react";
 
-interface Props {
-  onLogin: (email: string, password: string) => Promise<void>;
-  loading: boolean;
-  error: string | null;
-}
+interface Props { onLogin: (email: string, password: string) => Promise<void>; loading: boolean; error: string | null; }
 
 export function LoginPage({ onLogin, loading, error }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await onLogin(email, password);
-  };
+  const chooseDemo = (value: string) => { setEmail(value); setPassword("password123"); };
 
   return (
-    <Box minH="100vh" bg="#F5F0E8" display="flex" alignItems="stretch">
-      {/* Left panel — branding */}
-      <Box
-        flex="1"
-        bg="#0A0A0A"
-        display={{ base: "none", lg: "flex" }}
-        flexDirection="column"
-        justifyContent="space-between"
-        p={12}
-        position="relative"
-        overflow="hidden"
-      >
-        {/* Background grid pattern */}
-        <Box
-          position="absolute"
-          inset={0}
-          opacity={0.06}
-          sx={{
-            backgroundImage:
-              "linear-gradient(#FFE600 1px, transparent 1px), linear-gradient(90deg, #FFE600 1px, transparent 1px)",
-            backgroundSize: "40px 40px",
-          }}
-        />
-
-        {/* Top */}
-        <VStack align="flex-start" spacing={1} position="relative">
-          <Box
-            bg="#FFE600"
-            border="2px solid #FFE600"
-            px={3}
-            py={1}
-            display="inline-block"
-          >
-            <Text fontWeight="800" fontSize="sm" color="#0A0A0A" letterSpacing="0.1em" textTransform="uppercase">
-              Nuktas
-            </Text>
-          </Box>
-        </VStack>
-
-        {/* Center content */}
-        <VStack align="flex-start" spacing={6} position="relative">
-          <Text
-            fontSize="64px"
-            fontWeight="800"
-            lineHeight="1"
-            color="white"
-            letterSpacing="-0.02em"
-          >
-            Clinic
-            <br />
-            Queue
-            <br />
-            <Box as="span" color="#FFE600">System.</Box>
-          </Text>
-
-          <Box w="60px" h="4px" bg="#FFE600" />
-
-          <Text fontSize="sm" color="rgba(255,255,255,0.5)" fontWeight="500" maxW="320px" lineHeight="1.6">
-            AI-powered patient intake via voice call. Real-time triage and queue management for East African clinics.
-          </Text>
-
-          {/* Feature pills */}
-          <VStack align="flex-start" spacing={2}>
-            {[
-              "🎙 Voice intake in Kiswahili & English",
-              "⚡ Real-time queue updates across all staff",
-              "🚨 Instant critical patient alerts",
-            ].map((f) => (
-              <HStack key={f} spacing={2}>
-                <Box w="6px" h="6px" bg="#FFE600" flexShrink={0} />
-                <Text fontSize="12px" color="rgba(255,255,255,0.6)" fontWeight="500">
-                  {f}
-                </Text>
-              </HStack>
-            ))}
-          </VStack>
-        </VStack>
-
-        {/* Bottom */}
-        <Text fontSize="11px" color="rgba(255,255,255,0.25)" position="relative">
-          Nairobi, Kenya · {new Date().getFullYear()}
-        </Text>
+    <Box minH="100vh" bg="neo.bg" display="grid" gridTemplateColumns={{ base: "1fr", lg: "1.05fr .95fr" }}>
+      <Box bg="linear-gradient(145deg, #0B3B60 0%, #1261A0 55%, #0F766E 120%)" color="white" p={{ base: 8, md: 12, xl: 16 }} display={{ base: "none", lg: "flex" }} flexDirection="column" justifyContent="space-between" position="relative" overflow="hidden">
+        <Box position="absolute" w="420px" h="420px" borderRadius="full" border="80px solid rgba(255,255,255,.04)" right="-110px" top="-100px" />
+        <HStack spacing={3} position="relative"><Box w="42px" h="42px" borderRadius="xl" bg="white" color="blue.700" display="grid" placeItems="center" fontWeight="900" fontSize="xl">N</Box><Box><Text fontSize="lg" fontWeight="800">Nuktas</Text><Text fontSize="xs" color="whiteAlpha.700">Clinical triage coordination</Text></Box></HStack>
+        <Box position="relative" maxW="560px">
+          <Badge bg="rgba(255,255,255,.14)" color="white" mb={5} textTransform="none">SATS-grounded clinical workflow</Badge>
+          <Text fontSize={{ lg: "4xl", xl: "5xl" }} fontWeight="800" lineHeight="1.08" letterSpacing="-.04em">The right patient.<br />The right priority.<br />A clinician always decides.</Text>
+          <Text mt={6} maxW="500px" color="whiteAlpha.800" fontSize="md" lineHeight="1.7">Sourced priority recommendations and a clear audit trail help clinical teams act faster without handing decisions to a model.</Text>
+          <SimpleGrid columns={3} gap={3} mt={8}>
+            {[{ value: "SATS", label: "Grounded scoring" }, { value: "8", label: "Governed MCP tools" }, { value: "100%", label: "Human approval" }].map((item) => <Box key={item.value} bg="rgba(255,255,255,.1)" border="1px solid rgba(255,255,255,.16)" borderRadius="xl" p={4}><Text fontSize="lg" fontWeight="800">{item.value}</Text><Text fontSize="xs" color="whiteAlpha.700" mt={1}>{item.label}</Text></Box>)}
+          </SimpleGrid>
+        </Box>
+        <Text fontSize="xs" color="whiteAlpha.500" position="relative">Nairobi, Kenya • Privacy-first clinical infrastructure</Text>
       </Box>
 
-      {/* Right panel — login form */}
-      <Box
-        flex="1"
-        display="flex"
-        flexDirection="column"
-        justifyContent="center"
-        px={{ base: 6, md: 16, lg: 24 }}
-        py={12}
-        bg="#F5F0E8"
-        borderLeft={{ lg: "2px solid #0A0A0A" }}
-      >
-        <VStack align="stretch" spacing={8} maxW="360px" mx="auto" w="full">
-          {/* Mobile logo */}
-          <Box display={{ base: "block", lg: "none" }}>
-            <Box bg="#0A0A0A" px={3} py={1} display="inline-block" mb={2}>
-              <Text fontWeight="800" fontSize="sm" color="#FFE600" letterSpacing="0.1em" textTransform="uppercase">
-                Nuktas
-              </Text>
-            </Box>
-            <Text fontSize="xs" color="gray.500" fontWeight="600">
-              Clinic Queue System
-            </Text>
-          </Box>
+      <Box display="flex" alignItems="center" justifyContent="center" p={{ base: 5, md: 10 }}>
+        <VStack align="stretch" spacing={6} w="full" maxW="430px">
+          <HStack spacing={3} display={{ base: "flex", lg: "none" }}><Box w="40px" h="40px" borderRadius="xl" bg="neo.blue" color="white" display="grid" placeItems="center" fontWeight="900">N</Box><Box><Text fontWeight="800">Nuktas</Text><Text fontSize="xs" color="gray.500">Clinical triage coordination</Text></Box></HStack>
+          <Box><Text fontSize="3xl" fontWeight="800" color="gray.900" letterSpacing="-.03em">Welcome back</Text><Text fontSize="sm" color="gray.500" mt={2}>Sign in to your secure clinic workspace.</Text></Box>
 
-          <Box>
-            <Text fontSize="28px" fontWeight="800" lineHeight="1.1" mb={1}>
-              Sign In
-            </Text>
-            <Text fontSize="sm" color="gray.500" fontWeight="500">
-              Access your clinic dashboard
-            </Text>
-          </Box>
+          {error && <Box bg="red.50" border="1px solid" borderColor="red.200" borderRadius="lg" p={3}><Text color="red.700" fontSize="sm" fontWeight="650">{error}</Text></Box>}
 
-          <form onSubmit={handleSubmit} style={{ width: "100%" }}>
+          <form onSubmit={async (event) => { event.preventDefault(); await onLogin(email, password); }}>
             <VStack spacing={4} align="stretch">
-              {/* Error */}
-              {error && (
-                <Box
-                  bg="white"
-                  border="2px solid"
-                  borderColor="#E50000"
-                  boxShadow="3px 3px 0 #E50000"
-                  p={3}
-                >
-                  <HStack spacing={2}>
-                    <Text fontSize="sm" color="#E50000">⚠</Text>
-                    <Text fontSize="sm" fontWeight="600" color="#E50000">
-                      {error}
-                    </Text>
-                  </HStack>
-                </Box>
-              )}
-
-              <FormControl>
-                <FormLabel
-                  fontSize="10px"
-                  fontWeight="800"
-                  textTransform="uppercase"
-                  letterSpacing="0.12em"
-                  color="gray.600"
-                  mb={1}
-                >
-                  Email Address
-                </FormLabel>
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@nairobi.clinic"
-                  size="lg"
-                  bg="white"
-                  fontWeight="500"
-                  required
-                  autoComplete="email"
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel
-                  fontSize="10px"
-                  fontWeight="800"
-                  textTransform="uppercase"
-                  letterSpacing="0.12em"
-                  color="gray.600"
-                  mb={1}
-                >
-                  Password
-                </FormLabel>
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  size="lg"
-                  bg="white"
-                  fontWeight="500"
-                  required
-                  autoComplete="current-password"
-                />
-              </FormControl>
-
-              <Button
-                type="submit"
-                bg="#0A0A0A"
-                color="#FFE600"
-                borderColor="#0A0A0A"
-                size="lg"
-                w="full"
-                isLoading={loading}
-                loadingText="Signing in…"
-                mt={2}
-                fontSize="xs"
-                letterSpacing="0.12em"
-                _hover={{
-                  bg: "#0A0A0A",
-                  color: "#FFE600",
-                  boxShadow: "5px 5px 0 #0A0A0A",
-                  transform: "translate(-2px,-2px)",
-                }}
-              >
-                Sign In →
-              </Button>
+              <FormControl><FormLabel fontSize="sm" color="gray.700">Work email</FormLabel><Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@clinic.org" size="lg" required autoComplete="email" /></FormControl>
+              <FormControl><FormLabel fontSize="sm" color="gray.700">Password</FormLabel><Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" size="lg" required autoComplete="current-password" /></FormControl>
+              <Button type="submit" size="lg" bg="neo.blue" color="white" _hover={{ bg: "blue.700" }} isLoading={loading} loadingText="Signing in…" mt={1}>Sign in securely</Button>
             </VStack>
           </form>
 
-          {/* Demo credentials */}
-          <Box
-            border="2px solid"
-            borderColor="gray.300"
-            p={4}
-            bg="white"
-          >
-            <Text
-              fontSize="9px"
-              fontWeight="800"
-              textTransform="uppercase"
-              letterSpacing="0.14em"
-              color="gray.400"
-              mb={3}
-            >
-              Demo Credentials
-            </Text>
-            {[
-              { email: "admin@nairobi.clinic",  role: "Admin"  },
-              { email: "staff@nairobi.clinic",  role: "Staff"  },
-              { email: "doctor@nairobi.clinic", role: "Doctor" },
-            ].map(({ email: e, role }) => (
-              <HStack
-                key={e}
-                justify="space-between"
-                py={2}
-                borderBottom="1px solid"
-                borderColor="gray.100"
-                _last={{ borderBottom: "none" }}
-                cursor="pointer"
-                onClick={() => { setEmail(e); setPassword("password123"); }}
-                _hover={{ bg: "gray.50" }}
-                px={1}
-              >
-                <Box>
-                  <Text fontSize="11px" fontWeight="700" fontFamily="mono">{e}</Text>
-                  <Text fontSize="10px" color="gray.400">password123</Text>
-                </Box>
-                <Box
-                  bg="gray.100"
-                  border="1px solid"
-                  borderColor="gray.300"
-                  px={2}
-                  py="2px"
-                  fontSize="9px"
-                  fontWeight="700"
-                  textTransform="uppercase"
-                  letterSpacing="0.08em"
-                  borderRadius="2px"
-                >
-                  {role}
-                </Box>
-              </HStack>
-            ))}
+          <Box bg="white" border="1px solid" borderColor="gray.200" borderRadius="xl" p={4} boxShadow="xs">
+            <HStack justify="space-between" mb={3}><Text fontSize="sm" fontWeight="700" color="gray.800">Demo access</Text><Badge bg="blue.50" color="blue.700">Finalist demo</Badge></HStack>
+            <VStack align="stretch" spacing={2}>
+              {[{ email: "admin@nairobi.clinic", role: "Administrator" }, { email: "staff@nairobi.clinic", role: "Triage nurse" }, { email: "doctor@nairobi.clinic", role: "Clinician" }].map((item) => (
+                <HStack key={item.email} as="button" type="button" onClick={() => chooseDemo(item.email)} justify="space-between" textAlign="left" px={3} py={2.5} borderRadius="lg" _hover={{ bg: "gray.50" }}>
+                  <Box><Text fontSize="sm" fontWeight="650" color="gray.700">{item.role}</Text><Text fontSize="xs" color="gray.400">{item.email}</Text></Box><Text fontSize="xs" color="blue.600" fontWeight="700">Use account</Text>
+                </HStack>
+              ))}
+            </VStack>
           </Box>
+          <Text textAlign="center" fontSize="xs" color="gray.400">For authorised clinical personnel only.</Text>
         </VStack>
       </Box>
     </Box>
