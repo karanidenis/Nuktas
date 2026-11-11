@@ -144,7 +144,19 @@ automatically. These credentials are for local demonstration only.
 3. Use the footer action to check in, begin, or complete the visit.
 4. Open **Clinical review** to inspect pending SATS recommendations and record a
    clinician decision.
-5. Open **Activity & audit** to inspect the agent run and its tool-level trail.
+5. Open **Activity & audit** and select **Run scenario**. The synthetic busy-
+   morning demonstration records healthy baseline observations, proves the MCP
+   safety boundary rejects an impossible reading, records deterioration, and
+   starts the governed agent.
+6. Expand the resulting agent run to inspect every tool call, latency, model
+   usage, safety decision, and clinician-review handoff.
+7. In **Clinical review**, select the clinician's urgency and reason, then
+   approve or reject. Return to **Activity & audit** to see concordance metrics,
+   the recheck clock, and the deterministic **Handoff** and **FHIR** exports.
+
+The scenario uses synthetic records only and never changes priority without a
+named clinician. See [docs/FINALIST_SHOWCASE_SPEC.md](docs/FINALIST_SHOWCASE_SPEC.md)
+for scope, non-goals, and acceptance criteria.
 
 To create a fresh recommendation through the API, install `jq` and run:
 
@@ -333,6 +345,7 @@ The complete template is [.env.example](.env.example). Common overrides are:
 | `TTS_ENGINE` | `mms` for CPU or `chatterbox` for GPU | `mms` |
 | `MCP_REMOTE_TOKEN` | Protects Streamable HTTP MCP | Demo-only local value |
 | `MCP_ALLOWED_HOSTS` | HTTP Host allow-list | `localhost,127.0.0.1` |
+| `MODEL_COST_PER_1M_TOKENS` | Optional estimate shown in demo metrics | Unset / self-hosted |
 
 Never use the Compose defaults for a public or clinical deployment.
 

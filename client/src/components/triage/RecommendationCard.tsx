@@ -1,12 +1,14 @@
-import { Box, Button, Grid, HStack, Text, Textarea, VStack } from "@chakra-ui/react";
+import { Box, Button, FormControl, FormLabel, Grid, HStack, Select, Text, Textarea, VStack } from "@chakra-ui/react";
 import { useState } from "react";
 import { UrgencyBadge } from "../UrgencyBadge";
-import type { Recommendation } from "../../types/triage";
+import type { ClinicianDecisionInput, Recommendation, TriageUrgency } from "../../types/triage";
 
-interface Props { recommendation: Recommendation; onApprove: (note?: string) => Promise<any>; onReject: (note?: string) => Promise<any>; }
+interface Props { recommendation: Recommendation; onApprove: (decision: ClinicianDecisionInput) => Promise<any>; onReject: (decision: ClinicianDecisionInput) => Promise<any>; }
 export function RecommendationCard({ recommendation, onApprove, onReject }: Props) {
   const [note, setNote] = useState(""); const [busy, setBusy] = useState(false);
-  const act = async (kind: "approve" | "reject") => { setBusy(true); try { await (kind === "approve" ? onApprove(note || "Reviewed and approved by triage clinician") : onReject(note || "Rejected by triage clinician")); } finally { setBusy(false); } };
+  const [urgency, setUrgency] = useState<TriageUrgency>(recommendation.recommended_urgency);
+  const [reason, setReason] = useState("agrees_with_recommendation");
+  const act = async (kind: "approve" | "reject") => { setBusy(true); try { const decision = { clinician_urgency: urgency, decision_reason: reason, note: note || (kind === "approve" ? "Reviewed and approved by triage clinician" : "Rejected by triage clinician") }; await (kind === "approve" ? onApprove(decision) : onReject(decision)); } finally { setBusy(false); } };
   return <Box bg="white" border="1px solid" borderColor="gray.200" borderRadius="xl" overflow="hidden" boxShadow="xs">
     <Grid templateColumns={{ base: "1fr", lg: "minmax(0,1fr) 260px" }}>
       <VStack p={5} align="stretch" spacing={4}>
@@ -16,6 +18,8 @@ export function RecommendationCard({ recommendation, onApprove, onReject }: Prop
       </VStack>
       <VStack p={5} bg="gray.50" borderLeft={{ lg: "1px solid" }} borderTop={{ base: "1px solid", lg: "none" }} borderColor="gray.200" align="stretch" spacing={3}>
         <Box><Text fontWeight="800" fontSize="sm">Clinician decision</Text><Text fontSize="xs" color="gray.500" mt={1} lineHeight="1.5">Approval applies this recommendation to the queue and records your identity.</Text></Box>
+        <FormControl><FormLabel fontSize="xs" mb={1}>Clinician priority</FormLabel><Select bg="white" size="sm" value={urgency} onChange={(e) => { const value = e.target.value as TriageUrgency; setUrgency(value); if (value !== recommendation.recommended_urgency && reason === "agrees_with_recommendation") setReason("clinical_judgement"); }}>{["critical","high","medium","low"].map((value) => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}</Select></FormControl>
+        <FormControl><FormLabel fontSize="xs" mb={1}>Decision reason</FormLabel><Select bg="white" size="sm" value={reason} onChange={(e) => setReason(e.target.value)}><option value="agrees_with_recommendation">Agrees with recommendation</option><option value="clinical_judgement">Clinical judgement differs</option><option value="missing_information">Missing information</option><option value="measurement_quality">Measurement quality concern</option><option value="local_protocol">Local protocol</option><option value="insufficient_evidence">Insufficient evidence</option></Select></FormControl>
         <Textarea value={note} onChange={(e) => setNote(e.target.value)} bg="white" size="sm" placeholder="Decision note (recommended)" resize="vertical" />
         <Button colorScheme="blue" isLoading={busy} onClick={() => act("approve")}>Approve & update queue</Button>
         <Button variant="outline" colorScheme="red" isDisabled={busy} onClick={() => act("reject")}>Reject recommendation</Button>

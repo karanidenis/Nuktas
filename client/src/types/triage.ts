@@ -27,6 +27,8 @@ export interface Recommendation {
   decided_by_name?: string | null;
   decided_at?: string | null;
   decision_note?: string | null;
+  clinician_urgency?: TriageUrgency | null;
+  decision_reason?: string | null;
   applied_at?: string | null;
   inserted_at: string;
   patient?: {
@@ -43,6 +45,12 @@ export interface Recommendation {
     position_in_queue?: number | null;
   } | null;
   recommended_department?: string | null;
+}
+
+export interface ClinicianDecisionInput {
+  note?: string;
+  clinician_urgency: TriageUrgency;
+  decision_reason: string;
 }
 
 export interface Approval {

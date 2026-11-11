@@ -22,6 +22,7 @@ const clinicRoutes = require('./routes/clinics');
 const patientRoutes = require('./routes/patients');
 const analyticsRoutes = require('./routes/analytics');
 const triageRoutes = require('./routes/triage');
+const showcaseRoutes = require('./routes/showcase');
 const asrRoutes = require('./routes/asr');
 const asrIntakeRoutes = require('./routes/asrIntake');
 const asrConversationRoutes = require('./routes/asrConversation');
@@ -61,6 +62,7 @@ app.set('io', io);
 // service-token endpoints (agent worker callbacks) from being shadowed by that
 // blanket user-JWT check.
 app.use('/api/v1', triageRoutes);
+app.use('/api/v1', showcaseRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/v1', clinicRoutes);
 app.use('/api/v1', patientRoutes);

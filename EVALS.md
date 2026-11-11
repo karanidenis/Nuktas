@@ -3,7 +3,7 @@
 ## Goal
 This document records verifiable test tasks for the Nuktas triage agent. Each task includes setup, expected outcome, pass/fail, and evidence.
 
-## Latest verification snapshot — 2026-11-10
+## Latest verification snapshot — 2026-11-12
 
 - `npm --prefix mcp-server test`: **30 passed, 0 failed**.
 - `PYTHONPATH=agent/src agent/.venv/bin/python -m pytest agent/tests -q`:
@@ -12,12 +12,19 @@ This document records verifiable test tasks for the Nuktas triage agent. Each ta
   borrowed filesystem MCP succeeded, governed Nuktas tools read vitals/history,
   deterministic SATS created an Orange assessment, and clinician review was
   requested. No queue mutation occurred.
+- Synthetic busy-morning run: baseline observations accepted, impossible
+  observation rejected and audited, deterioration observations accepted, and
+  the agent reached **awaiting_approval** after five recorded steps.
+- Clinician decision evidence: **100% agreement** across the explicitly recorded
+  showcase decision, with handoff HTML and a FHIR Bundle containing Patient,
+  Encounter, six Observations, RiskAssessment, ServiceRequest, and Provenance.
 
 ## Test tasks (8+)
 
 ### T1: SATS scoring is deterministic (no LLM)
 - Setup: `cd mcp-server && node --test test/`
-- Expected: 28/28 tests pass (sats.test.js 20 + tools.test.js 8). TEWS/colour rules match 2012 EMSSA SATS.
+- Expected: all 30 tests pass, including SATS, governed tools, and the hosted
+  HTTP transport. TEWS/colour rules match 2012 EMSSA SATS.
 - Result: **PASS** (20 SATS cases plus tool, gate and hosted-transport cases in the MCP suite).
 - Evidence: test output showing ℹ counts.
 
@@ -80,6 +87,28 @@ This document records verifiable test tasks for the Nuktas triage agent. Each ta
   all eight governed tools.
 - Result: **PASS** (`mcp-server/test/http.test.js`).
 - Evidence: 2026-11-10 suite reports 30 passed, 0 failed.
+
+### T11: Deterioration scenario exercises the real safety boundary
+- Setup: sign in as an administrator or clinician, open **Activity & audit**, and
+  select **Run scenario**.
+- Expected: baseline observations are stored; heart rate 420 and SpO2 8 are
+  rejected and audited; corrected observations are stored; the governed agent
+  ends at clinician review without changing queue priority.
+- Result: **PASS** on 2026-11-12. The run recorded five steps and ended
+  `awaiting_approval`; displayed deltas were SpO2 97→89, HR 88→122, RR 18→32,
+  and systolic BP 132→88.
+- Evidence: activity timeline, `record_vitals_rejected` audit event, and
+  deterioration-watch response.
+
+### T12: Clinician evidence and interoperability exports
+- Setup: decide the synthetic recommendation with a clinician urgency and
+  structured reason, then open **Handoff** and **FHIR** in Activity & audit.
+- Expected: metrics count only explicit clinician feedback; the handoff names
+  the clinician and gate outcome; the FHIR collection carries observations,
+  risk, routing, and provenance and is tagged synthetic.
+- Result: **PASS** on 2026-11-12. Agreement was 100%, under/over-triage were 0,
+  handoff HTML returned 200, and the FHIR resource set matched the expectation.
+- Evidence: showcase metrics, handoff response, and FHIR Bundle response.
 
 ## Unfixed failure (at submission)
 

@@ -290,6 +290,12 @@ CREATE TABLE IF NOT EXISTS agent_runs (
 -- Backfill for databases created before `updated_at` was added to agent_runs.
 ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
+-- Finalist-showcase feedback fields. These record disagreement explicitly so
+-- evaluation can distinguish agreement, over-triage and under-triage instead
+-- of treating every click as a success.
+ALTER TABLE triage_assessments ADD COLUMN IF NOT EXISTS clinician_urgency VARCHAR;
+ALTER TABLE triage_assessments ADD COLUMN IF NOT EXISTS decision_reason VARCHAR;
+
 -- The named-clinician approval gate. A recommendation is only applied to the
 -- queue when a row here says decision='approved' for that assessment.
 CREATE TABLE IF NOT EXISTS approvals (

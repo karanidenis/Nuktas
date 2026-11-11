@@ -9,6 +9,20 @@ Nuktas is the "Triage Desk" agent: intake → SATS prioritisation → clinician 
 3. **agent** (Python + FastAPI + Pydantic AI) — agent worker; orchestrates calls via MCP, logs every tool call back to the API, ensures clinician approval, uses Ollama (open-weights). Scripted model for evals.
 4. **client** (React + Vite + Chakra UI) — separate queue, clinical review, and activity/audit workspaces. Voice intake is an optional pilot route, not primary navigation.
 
+## Finalist evidence loop
+The authenticated busy-morning route creates synthetic records only, then uses
+the same MCP `record_vitals` tool and agent worker as the normal workflow. It
+records a baseline, deliberately submits an impossible observation to exercise
+the validation boundary, records corrected deterioration observations, and
+ends at the existing clinician gate. The activity workspace derives its recheck
+clock, concordance metrics, and readable agent timeline from stored evidence;
+it does not change clinical state.
+
+The server can render an assessment as a deterministic printable handoff or a
+minimal FHIR R4 collection Bundle containing Patient, Encounter, Observation,
+RiskAssessment, optional ServiceRequest, and Provenance resources. This is an
+interoperability export, not a FHIR server or direct EHR write-back.
+
 ## Data & governance
 - Tables: vitals, triage_assessments, approvals (gate), agent_runs, audit_events (append-only). Clinics organised; patients have age/height for variant selection.
 - `evaluateGate(assessment, approval)` decides: assessment exists, linked to queue entry, not already applied, approval exists and decision=approved.

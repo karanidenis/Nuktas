@@ -42,6 +42,8 @@ function formatRecommendation(row) {
     decided_by_name: row.decided_by_name,
     decided_at: row.decided_at,
     decision_note: row.decision_note,
+    clinician_urgency: row.clinician_urgency,
+    decision_reason: row.decision_reason,
     applied_at: row.applied_at,
     inserted_at: row.inserted_at,
     patient: row.patient_name
@@ -103,6 +105,8 @@ async function setAssessmentStatus(id, status, extra = {}) {
   if (extra.decidedByName) { vals.push(extra.decidedByName); sets.push(`decided_by_name = $${vals.length}`); }
   if (extra.decidedBy) { vals.push(extra.decidedBy); sets.push(`decided_by = $${vals.length}`); }
   if (extra.decisionNote) { vals.push(extra.decisionNote); sets.push(`decision_note = $${vals.length}`); }
+  if (extra.clinicianUrgency) { vals.push(extra.clinicianUrgency); sets.push(`clinician_urgency = $${vals.length}`); }
+  if (extra.decisionReason) { vals.push(extra.decisionReason); sets.push(`decision_reason = $${vals.length}`); }
   if (extra.markDecided) sets.push('decided_at = COALESCE(decided_at, NOW())');
   await db.query(`UPDATE triage_assessments SET ${sets.join(', ')} WHERE id = $1`, vals);
 }

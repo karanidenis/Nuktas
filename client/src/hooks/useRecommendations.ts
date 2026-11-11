@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import type { Recommendation, Approval } from "../types/triage";
+import type { Recommendation, Approval, ClinicianDecisionInput } from "../types/triage";
 
 export function useRecommendations(
   clinicId: string | undefined,
@@ -40,12 +40,12 @@ export function useRecommendations(
   }, [fetchList]);
 
   const approve = useCallback(
-    async (id: string, note?: string) => {
+    async (id: string, decision: ClinicianDecisionInput) => {
       if (!clinicId || !token) throw new Error("Missing auth");
       const res = await fetch(`${base}/api/v1/clinics/${clinicId}/recommendations/${id}/approve`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ note }),
+        body: JSON.stringify(decision),
       });
       if (!res.ok) throw new Error(`Approve failed: ${res.status}`);
       await fetchList();
@@ -55,12 +55,12 @@ export function useRecommendations(
   );
 
   const reject = useCallback(
-    async (id: string, note?: string) => {
+    async (id: string, decision: ClinicianDecisionInput) => {
       if (!clinicId || !token) throw new Error("Missing auth");
       const res = await fetch(`${base}/api/v1/clinics/${clinicId}/recommendations/${id}/reject`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ note }),
+        body: JSON.stringify(decision),
       });
       if (!res.ok) throw new Error(`Reject failed: ${res.status}`);
       await fetchList();

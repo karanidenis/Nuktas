@@ -78,6 +78,9 @@ router.post(
   asyncHandler(async (req, res) => {
     const { clinic_id, id } = req.params;
     const note = req.body?.note ?? null;
+    const clinicianUrgency = ['critical', 'high', 'medium', 'low'].includes(req.body?.clinician_urgency)
+      ? req.body.clinician_urgency : null;
+    const decisionReason = req.body?.decision_reason ? String(req.body.decision_reason).slice(0, 80) : null;
 
     const assessment = await triage.getAssessment(id, clinic_id);
     if (!assessment) return res.status(404).json({ error: 'Recommendation not found' });
@@ -102,6 +105,8 @@ router.post(
       decidedBy: req.user.id,
       decidedByName: req.user.name,
       decisionNote: note,
+      clinicianUrgency: clinicianUrgency || assessment.recommended_urgency,
+      decisionReason: decisionReason || 'agrees_with_recommendation',
       markDecided: true,
     });
     await triage.writeAudit({
@@ -118,6 +123,8 @@ router.post(
         sats_colour: assessment.sats_colour,
         queue_entry_id: assessment.queue_entry_id,
         note,
+        clinician_urgency: clinicianUrgency || assessment.recommended_urgency,
+        decision_reason: decisionReason || 'agrees_with_recommendation',
       },
     });
 
@@ -157,6 +164,9 @@ router.post(
   asyncHandler(async (req, res) => {
     const { clinic_id, id } = req.params;
     const note = req.body?.note ?? null;
+    const clinicianUrgency = ['critical', 'high', 'medium', 'low'].includes(req.body?.clinician_urgency)
+      ? req.body.clinician_urgency : null;
+    const decisionReason = req.body?.decision_reason ? String(req.body.decision_reason).slice(0, 80) : null;
 
     const assessment = await triage.getAssessment(id, clinic_id);
     if (!assessment) return res.status(404).json({ error: 'Recommendation not found' });
@@ -177,6 +187,8 @@ router.post(
       decidedBy: req.user.id,
       decidedByName: req.user.name,
       decisionNote: note,
+      clinicianUrgency: clinicianUrgency || assessment.recommended_urgency,
+      decisionReason: decisionReason || 'insufficient_evidence',
       markDecided: true,
     });
     await triage.writeAudit({
@@ -191,6 +203,8 @@ router.post(
         approval_id: approval.id,
         recommended_urgency: assessment.recommended_urgency,
         note,
+        clinician_urgency: clinicianUrgency || assessment.recommended_urgency,
+        decision_reason: decisionReason || 'insufficient_evidence',
       },
     });
 

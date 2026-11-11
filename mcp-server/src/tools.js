@@ -443,6 +443,12 @@ function registerTools(server, opts = {}) {
     if (v.temperature_c != null && !(v.temperature_c >= sats.PLAUSIBLE.tempC.min && v.temperature_c <= sats.PLAUSIBLE.tempC.max)) rejected.push('temperature_c');
     if (v.spo2 != null && !(v.spo2 >= sats.PLAUSIBLE.spo2.min && v.spo2 <= sats.PLAUSIBLE.spo2.max)) rejected.push('spo2');
     if (rejected.length) {
+      const a = actorOf(actor);
+      await writeAudit({
+        clinicId: clinic_id, actorType: a.type, actorId: a.id, actorName: a.name,
+        action: 'record_vitals_rejected', subjectType: 'patient', subjectId: patient_id, runId: run_id,
+        payload: { queue_entry_id, rejected, reason: 'implausible_measurement' },
+      });
       return fail(`Implausible measurement(s): ${rejected.join(', ')}. Please re-measure.`, { rejected });
     }
 
