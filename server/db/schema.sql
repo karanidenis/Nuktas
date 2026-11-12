@@ -296,6 +296,25 @@ ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT N
 ALTER TABLE triage_assessments ADD COLUMN IF NOT EXISTS clinician_urgency VARCHAR;
 ALTER TABLE triage_assessments ADD COLUMN IF NOT EXISTS decision_reason VARCHAR;
 
+-- Retryable interoperability outbox. Nuktas remains the operational source of
+-- truth; only clinician-approved assessments are mirrored into the FHIR server.
+CREATE TABLE IF NOT EXISTS fhir_sync_jobs (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  clinic_id        UUID NOT NULL REFERENCES clinics(id) ON DELETE CASCADE,
+  assessment_id    UUID NOT NULL REFERENCES triage_assessments(id) ON DELETE CASCADE,
+  status           VARCHAR NOT NULL DEFAULT 'pending', -- pending | processing | synced | failed
+  attempts         INTEGER NOT NULL DEFAULT 0,
+  last_error       TEXT,
+  response_status  INTEGER,
+  response         JSONB,
+  next_attempt_at  TIMESTAMPTZ DEFAULT NOW(),
+  locked_at        TIMESTAMPTZ,
+  synced_at        TIMESTAMPTZ,
+  created_at       TIMESTAMPTZ DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (assessment_id)
+);
+
 -- The named-clinician approval gate. A recommendation is only applied to the
 -- queue when a row here says decision='approved' for that assessment.
 CREATE TABLE IF NOT EXISTS approvals (
@@ -336,3 +355,4 @@ CREATE INDEX IF NOT EXISTS idx_agent_runs_clinic       ON agent_runs(clinic_id, 
 CREATE INDEX IF NOT EXISTS idx_approvals_assessment    ON approvals(assessment_id);
 CREATE INDEX IF NOT EXISTS idx_audit_clinic            ON audit_events(clinic_id, inserted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_run               ON audit_events(run_id);
+CREATE INDEX IF NOT EXISTS idx_fhir_sync_pending       ON fhir_sync_jobs(status, next_attempt_at);

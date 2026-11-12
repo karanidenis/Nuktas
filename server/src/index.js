@@ -32,6 +32,7 @@ const { setupClinicSocket } = require('./sockets/clinic');
 const { setIo: setVoiceIo } = require('./webhooks/voice');
 const { startNotifyBridge } = require('./realtime/notifyBridge');
 const mcpClient = require('./mcp/triageClient');
+const fhirService = require('./services/fhir');
 
 const app = express();
 const httpServer = createServer(app);
@@ -104,12 +105,14 @@ const notifyBridge = startNotifyBridge(io);
 const PORT = Number(process.env.PORT) || 4000;
 httpServer.listen(PORT, () => {
   console.log(`Nuktas server running on http://localhost:${PORT}`);
+  fhirService.startWorker();
 });
 
 // Graceful shutdown — stop the bridge and the MCP child cleanly.
 async function shutdown(signal) {
   console.log(`\n${signal} received — shutting down`);
   try { await notifyBridge.stop(); } catch { /* ignore */ }
+  try { fhirService.stopWorker(); } catch { /* ignore */ }
   try { await mcpClient.close(); } catch { /* ignore */ }
   httpServer.close(() => process.exit(0));
   // Don't hang forever if sockets keep the server open.

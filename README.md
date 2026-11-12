@@ -153,6 +153,8 @@ automatically. These credentials are for local demonstration only.
 7. In **Clinical review**, select the clinician's urgency and reason, then
    approve or reject. Return to **Activity & audit** to see concordance metrics,
    the recheck clock, and the deterministic **Handoff** and **FHIR** exports.
+   Approved synthetic assessments are also mirrored asynchronously into the
+   local HAPI FHIR R4 server at `http://localhost:8080/fhir`.
 
 The scenario uses synthetic records only and never changes priority without a
 named clinician. See [docs/FINALIST_SHOWCASE_SPEC.md](docs/FINALIST_SHOWCASE_SPEC.md)
@@ -346,6 +348,8 @@ The complete template is [.env.example](.env.example). Common overrides are:
 | `MCP_REMOTE_TOKEN` | Protects Streamable HTTP MCP | Demo-only local value |
 | `MCP_ALLOWED_HOSTS` | HTTP Host allow-list | `localhost,127.0.0.1` |
 | `MODEL_COST_PER_1M_TOKENS` | Optional estimate shown in demo metrics | Unset / self-hosted |
+| `FHIR_PUBLIC_BASE_URL` | Public identity used in FHIR Bundle links | `http://localhost:8080/fhir` |
+| `FHIR_SERVER_TOKEN` | Optional bearer token for a remote FHIR server | Unset locally |
 
 Never use the Compose defaults for a public or clinical deployment.
 
@@ -371,8 +375,11 @@ docker compose -f docker-compose.mcp-judge.yml config --quiet
 Current verified baseline:
 
 - MCP: 30 passing tests
+- Server interoperability: 2 passing FHIR Bundle tests
 - Agent: 13 passing tests
 - Client: production build passes
+- FHIR Bundle: collection identity and transaction-idempotency tests pass
+- HAPI FHIR R4: live transaction and resource-search verification passes
 - Production MCP dependencies: 0 known audit vulnerabilities at last check
 
 Evaluation cases, expected outcomes, pass/fail status, and the intentionally
@@ -406,6 +413,7 @@ See [docs/ADR-002-voice-intake-positioning.md](docs/ADR-002-voice-intake-positio
 - [Architecture](ARCHITECTURE.md)
 - [Evaluation evidence](EVALS.md)
 - [MCP integration guide](MCP_INTEGRATION.md)
+- [FHIR R4 integration guide](FHIR_INTEGRATION.md)
 - [Hosted MCP decision](docs/ADR-001-hosted-mcp.md)
 - [Voice intake positioning](docs/ADR-002-voice-intake-positioning.md)
 

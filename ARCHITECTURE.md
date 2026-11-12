@@ -8,6 +8,9 @@ Nuktas is the "Triage Desk" agent: intake → SATS prioritisation → clinician 
 2. **server** (Express + Socket.IO + PostgreSQL) — REST API with JWT, service-token endpoints for the agent, LISTEN/NOTIFY→Socket.IO bridge, and an MCP client that spawns the mcp-server to call `apply_approved_queue_update`.
 3. **agent** (Python + FastAPI + Pydantic AI) — agent worker; orchestrates calls via MCP, logs every tool call back to the API, ensures clinician approval, uses Ollama (open-weights). Scripted model for evals.
 4. **client** (React + Vite + Chakra UI) — separate queue, clinical review, and activity/audit workspaces. Voice intake is an optional pilot route, not primary navigation.
+5. **fhir** (HAPI FHIR JPA Server R4 + isolated PostgreSQL) — queryable
+   interoperability read model populated only after clinician approval. It has
+   no path back into queue state.
 
 ## Finalist evidence loop
 The authenticated busy-morning route creates synthetic records only, then uses
@@ -19,9 +22,11 @@ clock, concordance metrics, and readable agent timeline from stored evidence;
 it does not change clinical state.
 
 The server can render an assessment as a deterministic printable handoff or a
-minimal FHIR R4 collection Bundle containing Patient, Encounter, Observation,
-RiskAssessment, optional ServiceRequest, and Provenance resources. This is an
-interoperability export, not a FHIR server or direct EHR write-back.
+FHIR R4 collection Bundle containing Patient, Encounter, Observation,
+RiskAssessment, optional ServiceRequest, and Provenance resources. It also
+places approved assessments in `fhir_sync_jobs`; a retrying worker submits an
+idempotent transaction Bundle to HAPI. HAPI is not a direct EHR write-back and
+cannot mutate Nuktas queue state.
 
 ## Data & governance
 - Tables: vitals, triage_assessments, approvals (gate), agent_runs, audit_events (append-only). Clinics organised; patients have age/height for variant selection.
@@ -45,4 +50,9 @@ Rationale: a standard, auditable server not authored by Nuktas, with a narrow
 filesystem boundary and a meaningful role in the end-to-end task.
 
 ## One-command / quick start
-`docker compose up --build` (services: postgres, server, client, asr, tts, ollama + one-shot `ollama-init` model pull). Agent runs as a service (AGENT_BASE_URL/AGENT_SERVICE_TOKEN); the server seeds demo data on boot. Model served by the bundled Ollama container — or point `LLM_BASE_URL`/`LLM_CHAT_MODEL`/`LLM_API_KEY` at any OpenAI-compatible server (self-hosted vLLM/TGI/LM Studio); `AGENT_MODEL_*` overrides the agent only.
+`docker compose up --build` (services: postgres, server, client, fhir + isolated
+FHIR PostgreSQL, asr, tts, ollama + one-shot `ollama-init` model pull). Agent
+runs as a service (AGENT_BASE_URL/AGENT_SERVICE_TOKEN); the server seeds demo
+data on boot. Model served by the bundled Ollama container — or point
+`LLM_BASE_URL`/`LLM_CHAT_MODEL`/`LLM_API_KEY` at any OpenAI-compatible server
+(self-hosted vLLM/TGI/LM Studio); `AGENT_MODEL_*` overrides the agent only.

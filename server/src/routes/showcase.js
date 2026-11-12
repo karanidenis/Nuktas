@@ -7,6 +7,7 @@ const { asyncHandler } = require('../utils/asyncHandler');
 const triage = require('../models/triage');
 const mcp = require('../mcp/triageClient');
 const agentService = require('../services/agent');
+const fhir = require('../services/fhir');
 
 const router = express.Router();
 const URGENCY = ['low', 'medium', 'high', 'critical'];
@@ -19,47 +20,6 @@ function escapeHtml(value) {
   return String(value ?? '')
     .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;').replaceAll("'", '&#039;');
-}
-
-async function loadPacket(clinicId, assessmentId) {
-  const assessment = await triage.getAssessment(assessmentId, clinicId);
-  if (!assessment) return null;
-  const [approval, vitalsResult, clinicResult, auditResult] = await Promise.all([
-    triage.getApprovalForAssessment(assessmentId),
-    db.query(
-      `SELECT * FROM vitals WHERE clinic_id = $1 AND patient_id = $2
-       ORDER BY recorded_at DESC LIMIT 1`,
-      [clinicId, assessment.patient_id]
-    ),
-    db.query('SELECT id, name, code, location FROM clinics WHERE id = $1', [clinicId]),
-    db.query(
-      `SELECT id, actor_type, actor_name, action, payload, inserted_at
-       FROM audit_events WHERE clinic_id = $1 AND subject_id = $2
-       ORDER BY inserted_at ASC`,
-      [clinicId, assessmentId]
-    ),
-  ]);
-  return {
-    document_type: 'Nuktas governed triage handoff',
-    generated_at: new Date().toISOString(),
-    synthetic: Boolean(assessment.patient?.phone_number?.startsWith('+25470099')),
-    clinic: clinicResult.rows[0] || null,
-    patient: assessment.patient,
-    queue_entry: assessment.queue_entry,
-    assessment,
-    latest_vitals: vitalsResult.rows[0] || null,
-    clinician_decision: approval ? {
-      decision: approval.decision,
-      clinician_name: approval.decided_by_name,
-      clinician_role: approval.decided_by_role,
-      selected_urgency: assessment.clinician_urgency,
-      reason: assessment.decision_reason,
-      note: approval.note,
-      decided_at: approval.inserted_at,
-    } : null,
-    audit_reference: auditResult.rows,
-    disclaimer: 'Decision support only. This document is not a diagnosis or treatment plan.',
-  };
 }
 
 function packetHtml(packet) {
@@ -80,34 +40,6 @@ function packetHtml(packet) {
   <div class="card"><h2>Latest observations</h2><table>${vitalRows.map(([name,value,unit]) => `<tr><td>${escapeHtml(name)}</td><td><strong>${escapeHtml(value)} ${escapeHtml(unit)}</strong></td></tr>`).join('')}</table></div>
   <div class="card"><h2>Clinician gate</h2>${d ? `<p><strong>${escapeHtml(d.decision)}</strong> by ${escapeHtml(d.clinician_name)} (${escapeHtml(d.clinician_role)})</p><p>Selected urgency: ${escapeHtml(d.selected_urgency || 'not recorded')} · Reason: ${escapeHtml(d.reason || 'not recorded')}</p><p>${escapeHtml(d.note)}</p>` : '<p>Awaiting named clinician decision. Queue unchanged.</p>'}</div>
   <footer>Assessment ${escapeHtml(a.id)} · ${escapeHtml(packet.disclaimer)}</footer></body></html>`;
-}
-
-function fhirBundle(packet) {
-  const a = packet.assessment; const v = packet.latest_vitals || {}; const d = packet.clinician_decision;
-  const patientRef = `Patient/${a.patient_id}`; const encounterId = a.queue_entry_id || a.id;
-  const observations = [
-    ['respiratory-rate', 'Respiratory rate', v.respiratory_rate, '/min'],
-    ['heart-rate', 'Heart rate', v.heart_rate, '/min'],
-    ['systolic-bp', 'Systolic blood pressure', v.systolic_bp, 'mm[Hg]'],
-    ['diastolic-bp', 'Diastolic blood pressure', v.diastolic_bp, 'mm[Hg]'],
-    ['body-temperature', 'Body temperature', v.temperature_c, 'Cel'],
-    ['oxygen-saturation', 'Oxygen saturation', v.spo2, '%'],
-  ].filter(([, , value]) => value != null).map(([code, display, value, unit]) => ({
-    resource: { resourceType: 'Observation', id: `${v.id || a.id}-${code}`, status: 'final',
-      code: { text: display }, subject: { reference: patientRef }, encounter: { reference: `Encounter/${encounterId}` },
-      effectiveDateTime: v.recorded_at || a.inserted_at, valueQuantity: { value: Number(value), unit } },
-  }));
-  const entries = [
-    { resource: { resourceType: 'Patient', id: a.patient_id, name: [{ text: packet.patient?.name || 'Unknown' }] } },
-    { resource: { resourceType: 'Encounter', id: encounterId, status: packet.queue_entry?.status === 'completed' ? 'finished' : 'in-progress', class: { code: 'AMB', display: 'ambulatory' }, subject: { reference: patientRef } } },
-    ...observations,
-    { resource: { resourceType: 'RiskAssessment', id: a.id, status: d ? 'final' : 'preliminary', subject: { reference: patientRef }, encounter: { reference: `Encounter/${encounterId}` }, occurrenceDateTime: a.inserted_at,
-      method: { text: `${a.scale || 'SATS'} ${a.scale_version || ''}`.trim() }, prediction: [{ outcome: { text: `${a.sats_colour} / ${a.recommended_urgency}` }, rationale: a.rationale }],
-      note: [{ text: packet.disclaimer }] } },
-  ];
-  if (a.recommended_department) entries.push({ resource: { resourceType: 'ServiceRequest', id: `route-${a.id}`, status: d?.decision === 'approved' ? 'active' : 'draft', intent: 'order', subject: { reference: patientRef }, encounter: { reference: `Encounter/${encounterId}` }, code: { text: `Route to ${a.recommended_department}` }, requester: d ? { display: d.clinician_name } : { display: 'Nuktas recommendation pending clinician review' } } });
-  entries.push({ resource: { resourceType: 'Provenance', id: `provenance-${a.id}`, recorded: packet.generated_at, target: [{ reference: `RiskAssessment/${a.id}` }], agent: [{ type: { text: 'author' }, who: { display: 'Nuktas governed triage agent' } }, ...(d ? [{ type: { text: 'verifier' }, who: { display: d.clinician_name } }] : [])] } });
-  return { resourceType: 'Bundle', type: 'collection', timestamp: packet.generated_at, meta: { tag: [{ code: packet.synthetic ? 'synthetic' : 'clinical-record' }] }, entry: entries };
 }
 
 router.post('/clinics/:clinic_id/showcase/busy-morning', authenticate, authorizeClinic, asyncHandler(async (req, res) => {
@@ -162,21 +94,41 @@ router.get('/clinics/:clinic_id/showcase/metrics', authenticate, authorizeClinic
       COUNT(*) FILTER (WHERE decided_at IS NOT NULL AND clinician_urgency IS NOT NULL AND CASE clinician_urgency WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 END < CASE recommended_urgency WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 END)::int AS over_triage,
       ROUND(AVG(EXTRACT(EPOCH FROM (decided_at-inserted_at))) FILTER (WHERE decided_at IS NOT NULL AND clinician_urgency IS NOT NULL))::int AS avg_decision_seconds FROM triage_assessments WHERE clinic_id=$1`, [clinicId]),
     db.query(`SELECT COUNT(*)::int AS runs, ROUND(AVG(duration_ms))::int AS avg_duration_ms, ROUND(AVG(tokens_in+tokens_out))::int AS avg_tokens, COUNT(*) FILTER (WHERE status='failed')::int AS failed_runs FROM agent_runs WHERE clinic_id=$1`, [clinicId]),
-    db.query(`SELECT id, patient_id, recommended_urgency, clinician_urgency, status, decided_by_name, decided_at FROM triage_assessments WHERE clinic_id=$1 AND decided_at IS NOT NULL AND clinician_urgency IS NOT NULL ORDER BY decided_at DESC LIMIT 8`, [clinicId]),
+    db.query(`SELECT a.id, a.patient_id, a.recommended_urgency, a.clinician_urgency, a.status,
+      a.decided_by_name, a.decided_at, f.status AS fhir_sync_status, f.synced_at AS fhir_synced_at
+      FROM triage_assessments a LEFT JOIN fhir_sync_jobs f ON f.assessment_id=a.id
+      WHERE a.clinic_id=$1 AND a.decided_at IS NOT NULL AND a.clinician_urgency IS NOT NULL
+      ORDER BY a.decided_at DESC LIMIT 8`, [clinicId]),
   ]);
   const decisions = decisionResult.rows[0]; const runs = runResult.rows[0]; const perMillion = Number(process.env.MODEL_COST_PER_1M_TOKENS || 0);
   res.json({ synthetic_or_demo_metrics: true, decisions: { ...decisions, agreement_rate: decisions.decisions ? Math.round((decisions.agreements / decisions.decisions) * 100) : null }, runs, estimated_cost_per_run_usd: perMillion && runs.avg_tokens ? Number(((runs.avg_tokens / 1_000_000) * perMillion).toFixed(6)) : null, cost_note: perMillion ? 'Configured model token estimate.' : 'Self-hosted model cost not configured; set MODEL_COST_PER_1M_TOKENS.', recent_decisions: recentResult.rows });
 }));
 
 router.get('/clinics/:clinic_id/recommendations/:id/handoff', authenticate, authorizeClinic, asyncHandler(async (req, res) => {
-  const packet = await loadPacket(req.params.clinic_id, req.params.id); if (!packet) return res.status(404).json({ error: 'Assessment not found' });
+  const packet = await fhir.loadPacket(req.params.clinic_id, req.params.id); if (!packet) return res.status(404).json({ error: 'Assessment not found' });
   if (req.query.format === 'html') return res.type('html').send(packetHtml(packet));
   res.json(packet);
 }));
 
 router.get('/clinics/:clinic_id/recommendations/:id/fhir', authenticate, authorizeClinic, asyncHandler(async (req, res) => {
-  const packet = await loadPacket(req.params.clinic_id, req.params.id); if (!packet) return res.status(404).json({ error: 'Assessment not found' });
-  res.type('application/fhir+json').send(fhirBundle(packet));
+  const packet = await fhir.loadPacket(req.params.clinic_id, req.params.id); if (!packet) return res.status(404).json({ error: 'Assessment not found' });
+  res.type('application/fhir+json').send(fhir.buildBundle(packet));
+}));
+
+router.get('/clinics/:clinic_id/recommendations/:id/fhir/status', authenticate, authorizeClinic, asyncHandler(async (req, res) => {
+  const status = await fhir.getSyncStatus(req.params.clinic_id, req.params.id);
+  res.json({ assessment_id: req.params.id, configured: Boolean(process.env.FHIR_BASE_URL), sync: status });
+}));
+
+router.post('/clinics/:clinic_id/recommendations/:id/fhir/sync', authenticate, authorizeClinic, asyncHandler(async (req, res) => {
+  if (!['admin', 'doctor'].includes(req.user.role)) return res.status(403).json({ error: 'Admin or clinician role required' });
+  const packet = await fhir.loadPacket(req.params.clinic_id, req.params.id);
+  if (!packet) return res.status(404).json({ error: 'Assessment not found' });
+  if (packet.clinician_decision?.decision !== 'approved') return res.status(409).json({ error: 'Only clinician-approved assessments can sync' });
+  const job = await fhir.enqueueSync({ clinicId: req.params.clinic_id, assessmentId: req.params.id, force: true });
+  const result = await fhir.processPending();
+  const status = await fhir.getSyncStatus(req.params.clinic_id, req.params.id);
+  res.status(result.ok ? 200 : 502).json({ job_id: job.id, result, sync: status });
 }));
 
 module.exports = router;

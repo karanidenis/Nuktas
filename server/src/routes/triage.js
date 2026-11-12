@@ -24,6 +24,7 @@ const {
 const triage = require('../models/triage');
 const mcp = require('../mcp/triageClient');
 const agentService = require('../services/agent');
+const fhir = require('../services/fhir');
 const { asyncHandler } = require('../utils/asyncHandler');
 
 const router = express.Router();
@@ -146,6 +147,12 @@ router.post(
       });
     }
 
+    // The operational decision has already succeeded. FHIR is an asynchronous
+    // interoperability read model, so an unavailable server cannot roll back
+    // the clinician gate or the governed MCP queue update.
+    await fhir.enqueueSync({ clinicId: clinic_id, assessmentId: id });
+    fhir.processPending().catch((error) => console.warn('[fhir] immediate sync:', error.message));
+
     emit(req.app.get('io'), clinic_id, 'recommendation_updated', {
       assessment_id: id,
       status: 'applied',
@@ -237,6 +244,8 @@ router.post(
       io: req.app.get('io'),
     });
     if (!result.ok) return res.status(502).json({ error: result.error });
+    await fhir.enqueueSync({ clinicId: clinic_id, assessmentId: id });
+    fhir.processPending().catch((error) => console.warn('[fhir] retry sync:', error.message));
     res.json({ success: true, applied: result.applied });
   })
 );

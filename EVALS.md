@@ -110,6 +110,21 @@ This document records verifiable test tasks for the Nuktas triage agent. Each ta
   handoff HTML returned 200, and the FHIR resource set matched the expectation.
 - Evidence: showcase metrics, handoff response, and FHIR Bundle response.
 
+### T13: Approved assessment reaches a queryable FHIR R4 server
+- Setup: start `fhir-postgres`, `fhir`, and `server`; approve a synthetic
+  recommendation; query HAPI's CapabilityStatement and the deterministic
+  Patient, Observation, RiskAssessment, and Provenance resources.
+- Expected: the outbox reaches `synced`, HAPI returns the resources, and a
+  repeated transaction updates the same logical IDs instead of duplicating
+  them. Rejected assessments cannot be manually synchronized.
+- Result: **PASS** on 2026-11-12. HAPI advertised FHIR 4.0.1 in server mode;
+  the outbox synchronized 11 resources with HTTP 200. Searches returned one
+  Patient, one Encounter, six Observations, one RiskAssessment, one
+  ServiceRequest, and one Provenance. A forced retry left every count unchanged,
+  and an unapproved assessment returned HTTP 409.
+- Evidence: server test output, `fhir_sync_jobs`, audit events,
+  CapabilityStatement, and HAPI search responses.
+
 ## Unfixed failure (at submission)
 
 **E9 — a real LLM can under-report emergency signs, so a true emergency may be scored
