@@ -19,6 +19,7 @@ export interface Recommendation {
   tews_score: number | null;
   tews_breakdown?: any[];
   clinical_signs?: any[];
+  evidence?: Record<string, any>;
   rationale: string | null;
   confidence: string | null;
   missing_data?: string[];

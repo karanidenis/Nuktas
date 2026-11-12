@@ -1,4 +1,4 @@
-import { Box, Button, HStack, Input, InputGroup, InputLeftElement, SimpleGrid, Spinner, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, HStack, Input, InputGroup, InputLeftElement, Spinner, Text, VStack } from "@chakra-ui/react";
 import { useParams, Navigate, Link as RouterLink } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { useClinicSocket } from "../hooks/useClinicSocket";
@@ -18,7 +18,7 @@ const statusOptions = [{ value: "active", label: "Active" }, { value: "waiting",
 export function DashboardPage({ token, user, onLogout }: Props) {
   const { clinic_id } = useParams<{ clinic_id: string }>();
   const { queue, stats, criticalAlerts, connected, acknowledgeAlert, checkIn, updateStatus } = useClinicSocket(clinic_id, token);
-  const { recommendations } = useRecommendations(clinic_id, token, "pending,awaiting_approval");
+  const { recommendations: allRecommendations } = useRecommendations(clinic_id, token, "pending,awaiting_approval,approved,rejected,applied");
   const [search, setSearch] = useState(""); const [filterUrgency, setFilterUrgency] = useState("all"); const [filterStatus, setFilterStatus] = useState("active"); const [selectedEntry, setSelectedEntry] = useState<QueueEntry | null>(null); const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => { const handler = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setSearchOpen(true); } }; window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler); }, []);
@@ -28,16 +28,24 @@ export function DashboardPage({ token, user, onLogout }: Props) {
     if (filterUrgency !== "all" && entry.urgency_tier !== filterUrgency) return false;
     const q = search.toLowerCase().trim(); if (!q) return true;
     return [entry.patient?.name, entry.queue_number, entry.chief_complaint, entry.department?.name].some((value) => value?.toLowerCase().includes(q));
+  }).sort((a, b) => {
+    const urgency = { critical: 0, high: 1, medium: 2, low: 3 };
+    const status = { waiting: 0, checked_in: 1, in_progress: 2, completed: 3, no_show: 4 };
+    return urgency[a.urgency_tier] - urgency[b.urgency_tier]
+      || status[a.status] - status[b.status]
+      || new Date(a.inserted_at).getTime() - new Date(b.inserted_at).getTime();
   }), [queue, filterStatus, filterUrgency, search]);
+  const recommendations = useMemo(() => allRecommendations.filter((item) => ["pending", "awaiting_approval"].includes(item.status)), [allRecommendations]);
+  const selectedRecommendation = selectedEntry ? allRecommendations.find((item) => item.queue_entry_id === selectedEntry.id) : undefined;
   if (!token) return <Navigate to="/login" replace />;
 
   return <AppShell clinicId={clinic_id} user={user} onLogout={onLogout} connected={connected}>
-    <HStack justify="space-between" align={{ base: "flex-start", md: "center" }} flexDirection={{ base: "column", md: "row" }} gap={4} mb={6}>
-      <Box><Text as="h1" fontSize={{ base: "2xl", md: "3xl" }} fontWeight="800" letterSpacing="-.03em">Patient queue</Text><Text fontSize="sm" color="gray.500" mt={1}>Prioritise arrivals, review context and move patients through care.</Text></Box>
-      <Button variant="outline" onClick={() => setSearchOpen(true)}>Search records <Text as="span" ml={2} color="gray.400" fontSize="xs">⌘K</Text></Button>
+    <HStack justify="space-between" align={{ base: "flex-start", md: "center" }} flexDirection={{ base: "column", md: "row" }} gap={4} mb={5}>
+      <Box><Text as="h1" fontSize={{ base: "2xl", md: "3xl" }} fontWeight="800" letterSpacing="-.03em">Patient queue</Text><Text fontSize="sm" color="gray.600" mt={1}>Urgent patients appear first. Open a patient to review context and take the next action.</Text></Box>
+      <Button variant="ghost" size="sm" onClick={() => setSearchOpen(true)}>Search all records <Text as="span" ml={2} color="gray.500" fontSize="xs">⌘K</Text></Button>
     </HStack>
 
-    {recommendations.length > 0 && <HStack mb={5} p={4} bg="orange.50" border="1px solid" borderColor="orange.200" borderRadius="xl" justify="space-between" align={{ base: "flex-start", sm: "center" }} flexDirection={{ base: "column", sm: "row" }}><Box><Text fontWeight="800" color="orange.900">{recommendations.length} recommendation{recommendations.length === 1 ? "" : "s"} need clinical review</Text><Text fontSize="sm" color="orange.800" mt={1}>No queue priority changes until a named clinician decides.</Text></Box><Button as={RouterLink} to={`/triage/review/${clinic_id}`} size="sm" colorScheme="orange">Open clinical review</Button></HStack>}
+    {recommendations.length > 0 && <HStack mb={5} p={4} bg="orange.50" border="1px solid" borderColor="orange.200" borderRadius="xl" justify="space-between" align={{ base: "flex-start", sm: "center" }} flexDirection={{ base: "column", sm: "row" }}><Box><Text fontWeight="800" color="orange.900">{recommendations.length} recommendation{recommendations.length === 1 ? "" : "s"} {recommendations.length === 1 ? "needs" : "need"} clinical review</Text><Text fontSize="sm" color="orange.800" mt={1}>No queue priority changes until a named clinician decides.</Text></Box><Button as={RouterLink} to={`/triage/review/${clinic_id}`} size="sm" colorScheme="orange">Open clinical review</Button></HStack>}
     <CriticalAlertBanner alerts={criticalAlerts} onAcknowledge={acknowledgeAlert} />
     {stats ? <StatsBar stats={stats} /> : <HStack justify="center" py={8}><Spinner size="sm" /><Text fontSize="sm" color="gray.500">Loading queue…</Text></HStack>}
 
@@ -48,9 +56,9 @@ export function DashboardPage({ token, user, onLogout }: Props) {
       </VStack>
     </Box>
 
-    {!connected && queue.length === 0 ? <HStack justify="center" py={20}><Spinner /><Text color="gray.500">Connecting to queue…</Text></HStack> : filtered.length === 0 ? <Box textAlign="center" py={16} bg="white" border="1px dashed" borderColor="gray.300" borderRadius="xl"><Text fontWeight="800">No patients match this view</Text><Text fontSize="sm" color="gray.500" mt={1}>Try another search, status or priority.</Text></Box> : <SimpleGrid columns={{ base: 1, md: 2, "2xl": 3 }} spacing={4}>{filtered.map((entry) => <QueueCard key={entry.id} entry={entry} onClick={setSelectedEntry} />)}</SimpleGrid>}
+    {!connected && queue.length === 0 ? <HStack justify="center" py={20}><Spinner /><Text color="gray.500">Connecting to queue…</Text></HStack> : filtered.length === 0 ? <Box textAlign="center" py={16} bg="white" border="1px dashed" borderColor="gray.300" borderRadius="xl"><Text fontWeight="800">No patients match this view</Text><Text fontSize="sm" color="gray.500" mt={1}>Try another search, status or priority.</Text></Box> : <VStack align="stretch" spacing={3}>{filtered.map((entry) => <QueueCard key={entry.id} entry={entry} onClick={setSelectedEntry} />)}</VStack>}
 
     <SearchPanel isOpen={searchOpen} onClose={() => setSearchOpen(false)} clinicId={clinic_id} token={token} />
-    <PatientModal entry={selectedEntry} token={token} onClose={() => setSelectedEntry(null)} onCheckIn={(id) => { checkIn(id); setSelectedEntry(null); }} onUpdateStatus={(id, status) => { updateStatus(id, status); setSelectedEntry(null); }} onAcknowledge={acknowledgeAlert} />
+    <PatientModal entry={selectedEntry} recommendation={selectedRecommendation} token={token} onClose={() => setSelectedEntry(null)} onCheckIn={(id) => { checkIn(id); setSelectedEntry(null); }} onUpdateStatus={(id, status) => { updateStatus(id, status); setSelectedEntry(null); }} onAcknowledge={acknowledgeAlert} />
   </AppShell>;
 }

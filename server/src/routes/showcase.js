@@ -45,9 +45,16 @@ function packetHtml(packet) {
 router.post('/clinics/:clinic_id/showcase/busy-morning', authenticate, authorizeClinic, asyncHandler(async (req, res) => {
   if (!['admin', 'doctor'].includes(req.user.role)) return res.status(403).json({ error: 'Admin or clinician role required' });
   const clinicId = req.params.clinic_id; const stamp = Date.now(); const client = await db.getClient();
-  let patient; let queueEntry; let complaint = 'Chest tightness, dizziness and worsening shortness of breath while waiting';
+  let patient; let queueEntry; let archivedDemoEntries = 0; let complaint = 'Chest tightness, dizziness and worsening shortness of breath while waiting';
   try {
     await client.query('BEGIN');
+    const oldDemoEntries = await client.query(`SELECT qe.id FROM queue_entries qe JOIN patients p ON p.id=qe.patient_id WHERE qe.clinic_id=$1 AND p.phone_number LIKE '+25470099%' AND qe.status IN ('waiting','checked_in','in_progress') FOR UPDATE`, [clinicId]);
+    const oldIds = oldDemoEntries.rows.map((row) => row.id);
+    if (oldIds.length) {
+      await client.query(`UPDATE triage_assessments SET status='superseded', updated_at=NOW() WHERE queue_entry_id=ANY($1::uuid[]) AND status IN ('pending','awaiting_approval')`, [oldIds]);
+      const archived = await client.query(`UPDATE queue_entries SET status='no_show', notes=CONCAT_WS(' · ', notes, 'Archived when a newer synthetic scenario started'), updated_at=NOW() WHERE id=ANY($1::uuid[]) RETURNING id`, [oldIds]);
+      archivedDemoEntries = archived.rowCount;
+    }
     const dept = (await client.query(`SELECT id FROM departments WHERE clinic_id = $1 ORDER BY is_emergency DESC, name LIMIT 1`, [clinicId])).rows[0];
     if (!dept) throw new Error('Clinic has no department');
     patient = (await client.query(`INSERT INTO patients (phone_number,name,chronic_conditions,preferred_language,consent_given,age_years,sex) VALUES ($1,$2,$3,'en',true,67,'female') RETURNING *`, [`+25470099${String(stamp).slice(-4)}`, `Miriam Demo ${String(stamp).slice(-4)}`, ['hypertension']])).rows[0];
@@ -61,10 +68,10 @@ router.post('/clinics/:clinic_id/showcase/busy-morning', authenticate, authorize
   const rejected = await mcp.callTool('record_vitals', { clinic_id: clinicId, patient_id: patient.id, queue_entry_id: queueEntry.id, source: 'staff_entry', actor, vitals: { heart_rate: 420, spo2: 8, notes: 'Deliberately invalid synthetic reading' } });
   const corrected = await mcp.callTool('record_vitals', { clinic_id: clinicId, patient_id: patient.id, queue_entry_id: queueEntry.id, source: 'staff_entry', actor, vitals: { respiratory_rate: 32, heart_rate: 122, systolic_bp: 88, diastolic_bp: 61, temperature_c: 37.2, spo2: 89, avpu: 'alert', mobility: 'with_help', age_years: 67, notes: 'Corrected synthetic deterioration observations' } });
   const run = await triage.createAgentRun({ clinicId, patientId: patient.id, queueEntryId: queueEntry.id, trigger: 'busy_morning_demo', language: 'en', input: { chief_complaint: complaint, synthetic: true, invalid_measurement_rejected: !rejected.ok } });
-  await triage.writeAudit({ clinicId, actorType: 'user', actorId: req.user.id, actorName: req.user.name, action: 'busy_morning_scenario_started', subjectType: 'agent_run', subjectId: run.id, runId: run.id, payload: { patient_id: patient.id, queue_entry_id: queueEntry.id, baseline_vitals_recorded: baseline.ok, invalid_measurement_rejected: !rejected.ok, corrected_vitals_recorded: corrected.ok } });
+  await triage.writeAudit({ clinicId, actorType: 'user', actorId: req.user.id, actorName: req.user.name, action: 'busy_morning_scenario_started', subjectType: 'agent_run', subjectId: run.id, runId: run.id, payload: { patient_id: patient.id, queue_entry_id: queueEntry.id, archived_demo_entries: archivedDemoEntries, baseline_vitals_recorded: baseline.ok, invalid_measurement_rejected: !rejected.ok, corrected_vitals_recorded: corrected.ok } });
   try { await agentService.startRun({ run_id: run.id, clinic_id: clinicId, patient_id: patient.id, queue_entry_id: queueEntry.id, chief_complaint: complaint, language: 'en', trigger: 'busy_morning_demo' }); }
   catch (error) { await triage.updateAgentRun(run.id, { status: 'failed', error: error.message, finished: true }); return res.status(502).json({ error: error.message, run_id: run.id }); }
-  res.status(202).json({ ok: true, synthetic: true, run_id: run.id, patient_id: patient.id, queue_entry_id: queueEntry.id, baseline_vitals_recorded: baseline.ok, invalid_measurement_rejected: !rejected.ok, corrected_vitals_recorded: corrected.ok });
+  res.status(202).json({ ok: true, synthetic: true, run_id: run.id, patient_id: patient.id, queue_entry_id: queueEntry.id, archived_demo_entries: archivedDemoEntries, baseline_vitals_recorded: baseline.ok, invalid_measurement_rejected: !rejected.ok, corrected_vitals_recorded: corrected.ok });
 }));
 
 router.get('/clinics/:clinic_id/showcase/deterioration-watch', authenticate, authorizeClinic, asyncHandler(async (req, res) => {

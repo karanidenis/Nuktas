@@ -7,7 +7,7 @@ interface Props { clinicId?: string; user: User | null; onLogout: () => void; co
 const nav = [
   { key: "queue", label: "Patient queue", glyph: "Q", path: (id: string) => `/dashboard/${id}` },
   { key: "review", label: "Clinical review", glyph: "R", path: (id: string) => `/triage/review/${id}` },
-  { key: "activity", label: "Activity & audit", glyph: "A", path: (id: string) => `/activity/${id}` },
+  { key: "activity", label: "Operations", glyph: "O", path: (id: string) => `/activity/${id}` },
 ];
 
 export function AppShell({ clinicId, user, onLogout, connected, children }: Props) {
